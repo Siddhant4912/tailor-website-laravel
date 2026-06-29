@@ -1,0 +1,27 @@
+#!/usr/bin/env php
+<?php
+
+use Illuminate\Foundation\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+
+define('LARAVEL_START', microtime(true));
+
+// Increase execution time limit to prevent timeouts on slower filesystems,
+// but keep it unlimited for long-running commands like serve, queue:work, etc.
+$args = $_SERVER['argv'] ?? [];
+if (in_array('serve', $args) || in_array('queue:work', $args) || in_array('queue:listen', $args) || in_array('schedule:work', $args)) {
+    ini_set('max_execution_time', 0);
+} else {
+    ini_set('max_execution_time', 180);
+}
+
+// Register the Composer autoloader...
+require __DIR__.'/vendor/autoload.php';
+
+// Bootstrap Laravel and handle the command...
+/** @var Application $app */
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+$status = $app->handleCommand(new ArgvInput);
+
+exit($status);
