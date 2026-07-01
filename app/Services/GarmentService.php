@@ -13,7 +13,7 @@ class GarmentService
     // mhanun public/storage/garments madhe pan copy kartो
     private function copyToPublic(string $relativePath): void
     {
-        $source      = storage_path('app/public/' . $relativePath);
+        $source = storage_path('app/public/' . $relativePath);
         $destination = public_path('storage/' . $relativePath);
 
         // Destination folder naste tar create kar
@@ -52,22 +52,22 @@ class GarmentService
             }
 
             $garment = Garment::create([
-                'category_id'         => $data['category_id'],
-                'design_id'           => $data['design_id'],
-                'name'                => $data['name'],
-                'description'         => $data['description'] ?? null,
-                'price'               => $data['price'],
-                'secondary_price'     => $data['secondary_price'] ?? null,
+                'category_id' => $data['category_id'],
+                'design_id' => $data['design_id'],
+                'name' => $data['name'],
+                'description' => $data['description'] ?? null,
+                'price' => $data['price'],
+                'secondary_price' => $data['secondary_price'] ?? null,
                 'stitching_time_days' => $data['stitching_time'] ?? 3,
-                'images'              => json_encode($imagesPaths),
-                'is_active'           => 1,
+                'images' => json_encode($imagesPaths),
+                'is_active' => 1,
             ]);
 
             if (!empty($data['measurements'])) {
                 foreach ($data['measurements'] as $m) {
                     $garment->measurements()->create([
-                        'field_name'  => $m['field_name'],
-                        'unit'        => $m['unit'] ?? 'inch',
+                        'field_name' => $m['field_name'],
+                        'unit' => $m['unit'] ?? 'inch',
                         'is_required' => $m['is_required'] ?? true,
                     ]);
                 }
@@ -118,22 +118,22 @@ class GarmentService
             }
 
             $garment->update([
-                'category_id'         => $data['category_id']    ?? $garment->category_id,
-                'design_id'           => $data['design_id']      ?? $garment->design_id,
-                'name'                => $data['name']           ?? $garment->name,
-                'description'         => $data['description']    ?? $garment->description,
-                'price'               => $data['price']          ?? $garment->price,
-                'secondary_price'     => array_key_exists('secondary_price', $data) ? $data['secondary_price'] : $garment->secondary_price,
+                'category_id' => $data['category_id'] ?? $garment->category_id,
+                'design_id' => $data['design_id'] ?? $garment->design_id,
+                'name' => $data['name'] ?? $garment->name,
+                'description' => $data['description'] ?? $garment->description,
+                'price' => $data['price'] ?? $garment->price,
+                'secondary_price' => array_key_exists('secondary_price', $data) ? $data['secondary_price'] : $garment->secondary_price,
                 'stitching_time_days' => $data['stitching_time'] ?? $garment->stitching_time_days,
-                'images'              => json_encode($imagesPaths),
+                'images' => json_encode($imagesPaths),
             ]);
 
             if (isset($data['measurements'])) {
                 $garment->measurements()->delete();
                 foreach ($data['measurements'] as $m) {
                     $garment->measurements()->create([
-                        'field_name'  => $m['field_name'],
-                        'unit'        => $m['unit'] ?? 'inch',
+                        'field_name' => $m['field_name'],
+                        'unit' => $m['unit'] ?? 'inch',
                         'is_required' => $m['is_required'] ?? true,
                     ]);
                 }

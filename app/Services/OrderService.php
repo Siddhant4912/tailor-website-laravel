@@ -164,7 +164,17 @@ class OrderService
 
             // Generate secure 4-digit OTP when order goes out for delivery
             if ($status === OrderStatusEnum::OUT_FOR_DELIVERY) {
-                $updateData['delivery_otp'] = strval(rand(1000, 9999));
+                $deliveryOtp = strval(rand(1000, 9999));
+                $updateData['delivery_otp'] = $deliveryOtp;
+
+                if (!empty($order->customer->phone)) {
+                    try {
+                        $smsService = app(\App\Services\SmsService::class);
+                        $smsService->sendDeliveryOtp($order->customer->phone, $deliveryOtp);
+                    } catch (\Exception $smsEx) {
+                        \Illuminate\Support\Facades\Log::error('Failed to send delivery OTP SMS: ' . $smsEx->getMessage());
+                    }
+                }
             }
 
             $order->update($updateData);

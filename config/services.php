@@ -36,8 +36,21 @@ return [
     ],
 
     'razorpay' => [
-        'key_id' => env('RAZORPAY_KEY_ID', 'rzp_test_T3ZqWQ7luGG2eB'),
-        'key_secret' => env('RAZORPAY_KEY_SECRET', 'ICchkvatPCpaXfCod7jSmK3a'),
+        'key_id' => env('RAZORPAY_KEY_ID'),
+        'key_secret' => env('RAZORPAY_KEY_SECRET'),
     ],
+
+    'gooadvert' => [
+        'api_key' => env('GOOADVERT_API_KEY'),
+        'user' => env('GOOADVERT_USER'),
+        'password' => env('GOOADVERT_PASSWORD'),
+        'sender_id' => env('GOOADVERT_SENDER_ID'),
+        'peid' => env('GOOADVERT_PEID'),
+        'template_id' => env('GOOADVERT_TEMPLATE_ID'),
+        'route' => env('GOOADVERT_ROUTE'),
+        'channel' => env('GOOADVERT_CHANNEL'),
+        'template_text' => env('GOOADVERT_TEMPLATE_TEXT'),
+    ],
+
 
 ];

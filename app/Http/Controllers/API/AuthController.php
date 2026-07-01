@@ -52,20 +52,39 @@ class AuthController extends Controller
             \Log::error('OTP email failed to send: ' . $e->getMessage());
         }
 
+        if (!empty($user->phone)) {
+            try {
+                $smsService = app(\App\Services\SmsService::class);
+                $smsService->sendOtp($user->phone, $otp);
+            } catch (\Exception $e) {
+                \Log::error('OTP SMS failed to send during registration: ' . $e->getMessage());
+            }
+        }
+
         return $this->successResponse([
             'verification_required' => true,
             'email' => $user->email,
-        ], 'User registered successfully. Verification OTP sent to your email.', 201);
+        ], 'User registered successfully. Verification OTP sent to your email and phone.', 201);
     }
 
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string',
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $loginInput = $request->email;
+
+        $user = User::where(function($query) use ($loginInput) {
+            $query->where('email', $loginInput)
+                  ->orWhere('phone', $loginInput);
+            
+            $cleaned = preg_replace('/[^0-9]/', '', $loginInput);
+            if (strlen($cleaned) >= 10) {
+                $query->orWhere('phone', 'like', '%' . substr($cleaned, -10));
+            }
+        })->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -106,10 +125,19 @@ class AuthController extends Controller
                 \Log::error('OTP login email failed: ' . $e->getMessage());
             }
 
+            if (!empty($user->phone)) {
+                try {
+                    $smsService = app(\App\Services\SmsService::class);
+                    $smsService->sendOtp($user->phone, $otp);
+                } catch (\Exception $e) {
+                    \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                }
+            }
+
             return $this->successResponse([
                 'verification_required' => true,
                 'email' => $user->email,
-            ], 'Verification required. A new OTP has been sent to your email.');
+            ], 'Verification required. A new OTP has been sent to your email and phone.');
         }
 
         // Load profiles based on role
@@ -127,12 +155,22 @@ class AuthController extends Controller
     public function sendOtp(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $loginInput = $request->email;
+        $user = User::where(function($query) use ($loginInput) {
+            $query->where('email', $loginInput)
+                  ->orWhere('phone', $loginInput);
+            
+            $cleaned = preg_replace('/[^0-9]/', '', $loginInput);
+            if (strlen($cleaned) >= 10) {
+                $query->orWhere('phone', 'like', '%' . substr($cleaned, -10));
+            }
+        })->first();
+
         if (!$user) {
-            return $this->errorResponse('No account found with this email.', 404);
+            return $this->errorResponse('No account found with this email or phone number.', 404);
         }
 
         $otp = (string) rand(100000, 999999);
@@ -153,9 +191,18 @@ class AuthController extends Controller
             return $this->errorResponse('Failed to send email. Please try again.', 500, $e->getMessage());
         }
 
+        if (!empty($user->phone)) {
+            try {
+                $smsService = app(\App\Services\SmsService::class);
+                $smsService->sendOtp($user->phone, $otp);
+            } catch (\Exception $e) {
+                \Log::error('Resend OTP SMS failed: ' . $e->getMessage());
+            }
+        }
+
         return $this->successResponse([
             'email' => $user->email,
-        ], 'A fresh verification OTP has been sent to your email.');
+        ], 'A fresh verification OTP has been sent to your email and phone.');
     }
 
     /**

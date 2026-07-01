@@ -31,9 +31,9 @@ class DashboardController extends Controller
                     DB::raw('SUM(total_price) as total')
                 )
                 ->where('status', 'delivered')
-                ->groupBy('year', 'month')
-                ->orderBy('year')
-                ->orderBy('month')
+                ->groupBy(DB::raw('YEAR(created_at)'), DB::raw('MONTH(created_at)'))
+                ->orderBy(DB::raw('YEAR(created_at)'))
+                ->orderBy(DB::raw('MONTH(created_at)'))
                 ->get();
 
             // FIX: load user so frontend knows who placed the order

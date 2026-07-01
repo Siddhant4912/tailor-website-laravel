@@ -271,16 +271,98 @@ Route::middleware('auth:sanctum')->group(function () {
 // Temporary route for cPanel setup (Run migrations & link storage)
 Route::get('/setup-cpanel', function () {
     try {
-         \Illuminate\Support\Facades\Artisan::call('storage:link');
+        \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--force' => true, '--seed' => true]);
         \Illuminate\Support\Facades\Artisan::call('config:clear');
         \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        
+        // The target folder in the backend where images are actually saved
+        $target = storage_path('app/public');
+        
+        // We will try to create the symlink in two possible locations:
+        // 1. The actual Document Root from the server
+        // 2. The sibling 'domain' folder based on your structure (home/project/domain)
+        $possibleLocations = [
+            $_SERVER['DOCUMENT_ROOT'] . '/storage',
+            base_path('../domain/storage')
+        ];
+
+        foreach ($possibleLocations as $link) {
+            // Only try if the parent directory exists (meaning we found the right place)
+            if (is_dir(dirname($link))) {
+                if (is_link($link)) {
+                    unlink($link);
+                } elseif (is_dir($link)) {
+                    \Illuminate\Support\Facades\File::deleteDirectory($link);
+                }
+                
+                try {
+                    symlink($target, $link);
+                } catch (\Exception $e) {
+                    // Ignore if it fails on one of them
+                }
+            }
+        } 
+        
         return response()->json([
-            'message' => 'Database migrated, seeded, and setup completed successfully!',
+            'message' => 'Old database deleted, freshly migrated, seeded, config & cache cleared successfully!',
             'status' => 'success'
         ]);
     } catch (\Exception $e) {
         return response()->json([
             'message' => 'Setup failed!',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+// Separate route just to link storage (without database migrations)
+Route::get('/link-storage', function () {
+    try {
+        $target = storage_path('app/public');
+        
+        $possibleLocations = [
+            $_SERVER['DOCUMENT_ROOT'] . '/storage',
+            base_path('../domain/storage')
+        ];
+
+        $linked = false;
+        $attemptedPaths = [];
+
+        foreach ($possibleLocations as $link) {
+            $attemptedPaths[] = $link;
+            // Only try if the parent directory exists
+            if (is_dir(dirname($link))) {
+                if (is_link($link)) {
+                    unlink($link);
+                } elseif (is_dir($link)) {
+                    \Illuminate\Support\Facades\File::deleteDirectory($link);
+                }
+                
+                try {
+                    symlink($target, $link);
+                    $linked = true;
+                    break; // stop loop if successful
+                } catch (\Exception $e) {
+                    // Ignore and try next location
+                }
+            }
+        } 
+        
+        if ($linked) {
+            return response()->json([
+                'message' => 'Storage linked successfully!',
+                'status' => 'success'
+            ]);
+        } else {
+            return response()->json([
+                'message' => 'Failed to create storage link.',
+                'attempted_paths' => $attemptedPaths,
+                'status' => 'error'
+            ], 500);
+        }
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error linking storage!',
             'error' => $e->getMessage()
         ], 500);
     }

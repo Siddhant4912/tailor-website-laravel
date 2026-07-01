@@ -137,6 +137,32 @@ class AppointmentController extends Controller
 
 
             $data = $this->service->create($validated);
+
+            // Send OTP verification to customer if created by admin
+            if ($this->isAdmin($request)) {
+                $customer = \App\Models\User::find($validated['customer_id']);
+                if ($customer && !empty($customer->phone)) {
+                    try {
+                        $otp = (string) rand(100000, 999999);
+                        
+                        // Clear existing OTPs and store the new one
+                        \App\Models\Otp::where('email', $customer->phone)->delete();
+                        \App\Models\Otp::create([
+                            'email' => $customer->phone,
+                            'otp' => $otp,
+                            'expires_at' => now()->addMinutes(15),
+                        ]);
+
+                        $smsService = app(\App\Services\SmsService::class);
+                        $smsService->sendOtp($customer->phone, $otp);
+                        
+                        \Illuminate\Support\Facades\Log::info("Admin created appointment ID: {$data->id}. OTP verification sent to customer phone: {$customer->phone}");
+                    } catch (\Exception $smsEx) {
+                        \Illuminate\Support\Facades\Log::error('Failed to send OTP verification SMS for admin appointment creation: ' . $smsEx->getMessage());
+                    }
+                }
+            }
+
             return $this->successResponse($data, 'Appointment created', 201);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage(), 500);
@@ -302,6 +328,13 @@ class AppointmentController extends Controller
             \Illuminate\Support\Facades\Log::info("Verification OTP for appointment (Phone: {$phone}): {$otp}");
         } catch (\Exception $e) {
             // Ignore logging errors to prevent 500 crashes
+        }
+
+        try {
+            $smsService = app(\App\Services\SmsService::class);
+            $smsService->sendOtp($phone, $otp);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to send OTP SMS for appointment to {$phone}: " . $e->getMessage());
         }
 
         return response()->json([
