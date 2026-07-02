@@ -199,6 +199,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // ORDERS (MISSING ADD THIS)
         // =====================
         Route::get('/orders', [OrderController::class, 'index']);
+        Route::put('/orders/{id}/delivery-date', [OrderController::class, 'updateDeliveryDate']);
 
         // =====================
         // CATEGORIES
@@ -274,10 +275,10 @@ Route::get('/setup-cpanel', function () {
         \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--force' => true, '--seed' => true]);
         \Illuminate\Support\Facades\Artisan::call('config:clear');
         \Illuminate\Support\Facades\Artisan::call('cache:clear');
-        
+
         // The target folder in the backend where images are actually saved
         $target = storage_path('app/public');
-        
+
         // We will try to create the symlink in two possible locations:
         // 1. The actual Document Root from the server
         // 2. The sibling 'domain' folder based on your structure (home/project/domain)
@@ -294,15 +295,15 @@ Route::get('/setup-cpanel', function () {
                 } elseif (is_dir($link)) {
                     \Illuminate\Support\Facades\File::deleteDirectory($link);
                 }
-                
+
                 try {
                     symlink($target, $link);
                 } catch (\Exception $e) {
                     // Ignore if it fails on one of them
                 }
             }
-        } 
-        
+        }
+
         return response()->json([
             'message' => 'Old database deleted, freshly migrated, seeded, config & cache cleared successfully!',
             'status' => 'success'
@@ -319,7 +320,7 @@ Route::get('/setup-cpanel', function () {
 Route::get('/link-storage', function () {
     try {
         $target = storage_path('app/public');
-        
+
         $possibleLocations = [
             $_SERVER['DOCUMENT_ROOT'] . '/storage',
             base_path('../domain/storage')
@@ -337,7 +338,7 @@ Route::get('/link-storage', function () {
                 } elseif (is_dir($link)) {
                     \Illuminate\Support\Facades\File::deleteDirectory($link);
                 }
-                
+
                 try {
                     symlink($target, $link);
                     $linked = true;
@@ -346,8 +347,8 @@ Route::get('/link-storage', function () {
                     // Ignore and try next location
                 }
             }
-        } 
-        
+        }
+
         if ($linked) {
             return response()->json([
                 'message' => 'Storage linked successfully!',

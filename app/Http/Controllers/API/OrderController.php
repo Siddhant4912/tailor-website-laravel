@@ -514,4 +514,23 @@ class OrderController extends Controller
             return $this->errorResponse('Failed to initiate Razorpay order', 500, $e->getMessage());
         }
     }
+
+    public function updateDeliveryDate(Request $request, int $id)
+    {
+        $user = $request->user();
+        if ($user && !$user->isAdmin()) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
+        $validated = $request->validate([
+            'delivery_date' => 'required|date_format:Y-m-d',
+        ]);
+
+        $order = Order::findOrFail($id);
+        $order->update([
+            'delivery_date' => $validated['delivery_date'],
+        ]);
+
+        return $this->successResponse(new OrderResource($order), 'Delivery date updated successfully');
+    }
 }

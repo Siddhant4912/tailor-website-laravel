@@ -127,4 +127,15 @@ class Garment extends Model
     {
         return $this->hasOne(GarmentRatingStat::class);
     }
+
+    protected static function booted()
+    {
+        static::saved(function ($model) {
+            \Illuminate\Support\Facades\Cache::forget('catalog_system_index');
+        });
+
+        static::deleted(function ($model) {
+            \Illuminate\Support\Facades\Cache::forget('catalog_system_index');
+        });
+    }
 }

@@ -68,4 +68,14 @@ class Design extends Model
         return $query->where('category_id', $categoryId);
     }
 
+    protected static function booted()
+    {
+        static::saved(function ($model) {
+            \Illuminate\Support\Facades\Cache::forget('catalog_system_index');
+        });
+
+        static::deleted(function ($model) {
+            \Illuminate\Support\Facades\Cache::forget('catalog_system_index');
+        });
+    }
 }
