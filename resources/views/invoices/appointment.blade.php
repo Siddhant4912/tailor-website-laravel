@@ -270,7 +270,7 @@
         <div class="invoice-title">INVOICE</div>
         <div class="invoice-meta">
           Invoice No: <span class="meta-value">{{ $invoice->invoice_number }}</span><br>
-          Generated: <span class="meta-value">{{ \Carbon\Carbon::parse($invoice->generated_at)->format('d M Y') }}</span><br>
+          Generated: <span class="meta-value">{{ \Carbon\Carbon::parse($invoice->generated_at)->format('j F Y') }}</span><br>
           @if($paymentMode)
             Mode: <span class="meta-value" style="text-transform: uppercase;">{{ str_replace('_', ' ', $paymentMode) }}</span><br>
           @endif

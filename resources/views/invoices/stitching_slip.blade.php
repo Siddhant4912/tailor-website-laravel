@@ -161,7 +161,7 @@
       <td>{{ $order->customer->phone ?? 'N/A' }}</td>
       <td class="meta-label">Delivery Date:</td>
       <td style="font-weight: bold;">
-        {{ $order->delivery_date ? \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') : 'Standard Delivery' }}
+        {{ $order->delivery_date ? \Carbon\Carbon::parse($order->delivery_date)->format('j F Y') : 'Standard Delivery' }}
       </td>
     </tr>
     <tr>
@@ -261,7 +261,7 @@
     |
     Stitching Job Card for Internal Reference Only
     |
-    Printed on: {{ \Carbon\Carbon::now()->format('d M Y, h:i A') }}
+    Printed on: {{ \Carbon\Carbon::now()->format('j F Y, h:i A') }}
   </div>
 
 </body>

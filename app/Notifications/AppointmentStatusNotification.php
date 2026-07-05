@@ -36,7 +36,7 @@ class AppointmentStatusNotification extends Notification
      */
     public function toMail($notifiable): MailMessage
     {
-        $dateStr = $this->appointment->appointment_date ? $this->appointment->appointment_date->format('Y-m-d') : 'TBD';
+        $dateStr = $this->appointment->appointment_date ? $this->appointment->appointment_date->format('j F Y') : 'TBD';
         $formattedStatus = ucfirst($this->status);
 
         $mail = (new MailMessage)
@@ -77,7 +77,7 @@ class AppointmentStatusNotification extends Notification
     public function toDatabase($notifiable): array
     {
         $formattedStatus = ucfirst($this->status);
-        $dateStr = $this->appointment->appointment_date ? $this->appointment->appointment_date->format('Y-m-d') : 'TBD';
+        $dateStr = $this->appointment->appointment_date ? $this->appointment->appointment_date->format('j F Y') : 'TBD';
         $message = "Your measurement visit appointment is now {$this->status}.";
         
         switch ($this->status) {
