@@ -23,7 +23,11 @@ use App\Http\Controllers\API\TailorServiceController;
 use App\Http\Controllers\API\UserProfileController;
 use App\Http\Controllers\API\DeliveryStaffController;
 
-Route::get('/run-link', function () {
+Route::get('/run-link', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
     \Illuminate\Support\Facades\Artisan::call('storage:link');
     return "Storage link created inside api folder successfully!";
 });
