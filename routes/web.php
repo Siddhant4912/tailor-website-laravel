@@ -19,7 +19,8 @@ Route::middleware(['role:tailor'])->group(function () {
 });
 
 Route::get('/clear-cache', function (\Illuminate\Http\Request $request) {
-    if ($request->query('secret') !== 'siddhant_pawar_secure_key_2026') {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
         abort(404);
     }
     \Illuminate\Support\Facades\Artisan::call('route:clear');
@@ -29,7 +30,8 @@ Route::get('/clear-cache', function (\Illuminate\Http\Request $request) {
 });
 
 Route::get('/run-git-reset', function (\Illuminate\Http\Request $request) {
-    if ($request->query('secret') !== 'siddhant_pawar_secure_key_2026') {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
         abort(404);
     }
     $basePath = base_path();
