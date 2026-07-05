@@ -123,11 +123,19 @@
   <table style="width: 100%;" class="header">
     <tr>
       <td>
-        <div class="brand">{{ config('company.name', 'Antigravity Tailors') }}</div>
-        <div style="font-size:11px; color:#666; margin-top:2px;">
-          {{ config('company.tagline', 'Premium Custom Stitching Job Slip') }}
+        <div style="min-height: 54px; margin-bottom: 6px;">
+          @if(file_exists(public_path('images/logo.png')))
+            <img src="{{ public_path('images/logo.png') }}" style="float: left; height: 50px; width: 50px; border-radius: 8px; margin-right: 12px;" />
+          @endif
+          <div style="float: left; margin-top: 4px;">
+            <div class="brand">{{ config('company.name', 'Antigravity Tailors') }}</div>
+            <div style="font-size:11px; color:#666; margin-top:2px;">
+              {{ config('company.tagline', 'Premium Custom Stitching Job Slip') }}
+            </div>
+          </div>
+          <div style="clear: both;"></div>
         </div>
-        <div style="font-size:10px; color:#999; margin-top:2px;">
+        <div style="font-size:10px; color:#999; margin-top:6px;">
           Phone: {{ config('company.phone', '') }}
         </div>
       </td>

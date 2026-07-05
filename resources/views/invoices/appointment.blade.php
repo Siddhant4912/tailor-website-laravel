@@ -1,3 +1,4 @@
+{{-- siddhant pawawr 05-07-2026 --}}
 <!DOCTYPE html>
 <html>
 <head>
@@ -245,14 +246,24 @@
   <table class="layout-table" style="border-bottom: 2px solid #c8945e; padding-bottom: 12px; margin-bottom: 20px;">
     <tr>
       <td style="width: 60%;">
-        <div class="brand-title"><span class="brand-accent">{{ config('company.name', 'STITCH & STYLE') }}</span></div>
-        <div class="tagline">{{ config('company.tagline', 'Professional Ladies Tailoring Services') }}</div>
+        <div style="min-height: 54px; margin-bottom: 6px;">
+          @if(file_exists(public_path('images/logo.png')))
+            <img src="{{ public_path('images/logo.png') }}" style="float: left; height: 50px; width: 50px; border-radius: 8px; margin-right: 12px;" />
+          @endif
+          <div style="float: left; margin-top: 4px;">
+            <div class="brand-title"><span class="brand-accent">{{ config('company.name', 'STITCH & STYLE') }}</span></div>
+            <div class="tagline">{{ config('company.tagline', 'Professional Ladies Tailoring Services') }}</div>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
         <div class="company-details">
           {{ config('company.address', '') }}<br>
           Phone: {{ config('company.phone', '') }}
+          {{--
           @if(config('company.gstin'))
             &nbsp;|&nbsp; GSTIN: {{ config('company.gstin') }}
           @endif
+          --}}
         </div>
       </td>
       <td style="text-align: right; width: 40%;">
@@ -283,7 +294,7 @@
           <div class="section-title">Appointment Info</div>
           <div class="details-name">Appointment #{{ $appointment->id }}</div>
           <div class="details-text">
-            Date: {{ \Carbon\Carbon::parse($appointment->appointment_date)->format('d M Y') }}<br>
+            Date: {{ \Carbon\Carbon::parse($appointment->appointment_date)->format('j F Y') }}<br>
             Time: {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('h:i A') }}
           </div>
         </div>
@@ -295,6 +306,12 @@
           <div class="details-name">{{ $appointment->customer->name ?? 'Customer' }}</div>
           <div class="details-text">
             {{ $appointment->address_line }}, {{ $appointment->city }}, {{ $appointment->state }} - {{ $appointment->pincode }}
+            @if($appointment->customer->email)
+              <div style="margin-top: 4px;">Email: {{ $appointment->customer->email }}</div>
+            @endif
+            @if($appointment->customer->phone)
+              <div style="margin-top: 4px; font-weight: bold;">Phone: {{ $appointment->customer->phone }}</div>
+            @endif
           </div>
         </div>
       </td>
@@ -427,6 +444,37 @@
       </td>
     </tr>
   </table>
+
+  {{-- TRANSACTIONS HISTORY --}}
+  @if($invoice->transactions->count() > 0)
+  <div class="section" style="margin-top: 20px; margin-bottom: 20px;">
+    <div class="section-title" style="margin-bottom: 6px; color: #c8945e; font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px;">Payment Ledger History</div>
+    <table class="items-table" style="font-size: 8.5px;">
+      <thead>
+        <tr>
+          <th style="text-align: left; padding: 6px 8px;">Txn Reference</th>
+          <th style="text-align: left; width: 120px; padding: 6px 8px;">Payment Mode</th>
+          <th style="text-align: right; width: 100px; padding: 6px 8px;">Amount</th>
+          <th style="text-align: center; width: 100px; padding: 6px 8px;">Status</th>
+          <th style="text-align: right; width: 120px; padding: 6px 8px;">Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($invoice->transactions as $txn)
+        <tr>
+          <td style="font-weight: bold; padding: 6px 8px;">{{ $txn->transaction_number ?? 'Pending Reference' }}</td>
+          <td style="text-transform: uppercase; padding: 6px 8px;">{{ str_replace('_', ' ', $txn->payment_mode) }}</td>
+          <td style="text-align: right; font-weight: bold; padding: 6px 8px;">&#8377;{{ number_format($txn->amount, 2) }}</td>
+          <td style="text-align: center; text-transform: uppercase; font-weight: bold; padding: 6px 8px; color: {{ $txn->status === 'successful' ? '#166534' : ($txn->status === 'pending' ? '#b45309' : '#991b1b') }};">
+            {{ $txn->status }}
+          </td>
+          <td style="text-align: right; padding: 6px 8px;">{{ \Carbon\Carbon::parse($txn->created_at)->format('j F Y h:i A') }}</td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
+  </div>
+  @endif
 
   {{-- FOOTER --}}
   <div class="footer">

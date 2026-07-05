@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Http\Controllers\API;
 
@@ -245,11 +246,18 @@ class DeliveryStaffAppointmentController extends Controller
 
                 // Calculate actual amount already paid online/invoiced on the appointment
                 $alreadyPaidOnAppointment = 0;
+                $lastVerifiedUpiTxnNumber = null;
                 if ($appointment->invoices) {
                     foreach ($appointment->invoices as $apptInvoice) {
-                        $alreadyPaidOnAppointment += $apptInvoice->transactions()
+                        $successfulTxns = $apptInvoice->transactions()
                             ->where('status', \App\Enums\TransactionStatusEnum::SUCCESSFUL)
-                            ->sum('amount');
+                            ->get();
+                        foreach ($successfulTxns as $successfulTxn) {
+                            $alreadyPaidOnAppointment += $successfulTxn->amount;
+                            if ($successfulTxn->payment_mode === 'online') {
+                                $lastVerifiedUpiTxnNumber = $successfulTxn->transaction_number;
+                            }
+                        }
                     }
                 }
 
@@ -360,8 +368,8 @@ class DeliveryStaffAppointmentController extends Controller
                         // 1. Create a successful transaction for the advance payment
                         if ($advancePaid > 0) {
                             $invoice->transactions()->create([
-                                'transaction_number' => 'TXN-' . strtoupper(uniqid()),
-                                'payment_mode' => $data['payment_method'] ?? 'cash',
+                                'transaction_number' => $lastVerifiedUpiTxnNumber ?? ('TXN-' . strtoupper(uniqid())),
+                                'payment_mode' => $lastVerifiedUpiTxnNumber ? 'online' : ($data['payment_method'] ?? 'cash'),
                                 'amount' => $advancePaid,
                                 'status' => \App\Enums\TransactionStatusEnum::SUCCESSFUL,
                             ]);
@@ -429,7 +437,9 @@ class DeliveryStaffAppointmentController extends Controller
                     'payment_status' => 'paid',
                 ]);
 
-                $visitCharge = $appointment->visit_charge > 0 ? $appointment->visit_charge : 200;
+                $visitChargeSetting = \App\Models\Setting::where('key', 'visit_charge')->first();
+                $defaultVisitCharge = $visitChargeSetting ? (float)$visitChargeSetting->value : 200.00;
+                $visitCharge = $appointment->visit_charge > 0 ? $appointment->visit_charge : $defaultVisitCharge;
 
                 // Calculate how much was already paid online
                 $alreadyPaidOnAppointment = 0;

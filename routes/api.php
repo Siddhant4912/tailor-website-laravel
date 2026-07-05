@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,12 @@ use App\Http\Controllers\API\TailorProfileController;
 use App\Http\Controllers\API\TailorServiceController;
 use App\Http\Controllers\API\UserProfileController;
 use App\Http\Controllers\API\DeliveryStaffController;
+
+Route::get('/run-link', function () {
+    \Illuminate\Support\Facades\Artisan::call('storage:link');
+    return "Storage link created inside api folder successfully!";
+});
+
 
 /*
 |--------------------------------------------------------------------------
@@ -101,10 +108,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/payments/initiate', [InvoiceController::class, 'initiateRazorpayOrder']);
     Route::post('/payments/initiate-appointment', [AppointmentController::class, 'initiateAppointmentPayment']);
     Route::post('/payments/initiate-order', [OrderController::class, 'initiateOrderPayment']);
+    Route::post('/payments/initiate-advance', [InvoiceController::class, 'initiateAdvancePayment']);
     Route::post('/appointments/pay-and-create', [AppointmentController::class, 'payAndCreate']);
     Route::post('/orders/pay-and-create', [OrderController::class, 'payAndCreate']);
     Route::post('/payments/{transaction_id}/razorpay-order', [InvoiceController::class, 'createRazorpayOrder']);
     Route::post('/payments/razorpay/verify', [InvoiceController::class, 'verifyRazorpayPayment']);
+
     Route::post('/payments/mock-charge', [InvoiceController::class, 'mockCharge']);
 
     // Admin website invoice download and generation alignments
@@ -119,6 +128,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/profile', [UserProfileController::class, 'profile']);
     Route::put('/user/profile', [UserProfileController::class, 'update']);
     Route::post('/user/profile/photo', [UserProfileController::class, 'updatePhoto']);
+    Route::post('/user/profile/send-otp', [UserProfileController::class, 'sendOtp']);
+    Route::post('/user/profile/verify-otp', [UserProfileController::class, 'verifyOtp']);
 
     /*
     |--------------------------------------------------------------------------
@@ -315,18 +326,17 @@ Route::get('/setup-cpanel', function () {
         ], 500);
     }
 });
-
 // Separate route just to link storage (without database migrations)
 Route::get('/link-storage', function () {
     try {
         $target = storage_path('app/public');
 
         $possibleLocations = [
+            public_path('storage'),
             $_SERVER['DOCUMENT_ROOT'] . '/storage',
-            base_path('../domain/storage')
         ];
 
-        $linked = false;
+        $linkedCount = 0;
         $attemptedPaths = [];
 
         foreach ($possibleLocations as $link) {
@@ -341,17 +351,17 @@ Route::get('/link-storage', function () {
 
                 try {
                     symlink($target, $link);
-                    $linked = true;
-                    break; // stop loop if successful
+                    $linkedCount++;
                 } catch (\Exception $e) {
                     // Ignore and try next location
                 }
             }
         }
 
-        if ($linked) {
+        if ($linkedCount > 0) {
             return response()->json([
-                'message' => 'Storage linked successfully!',
+                'message' => 'Storage linked successfully in ' . $linkedCount . ' location(s)!',
+                'attempted_paths' => $attemptedPaths,
                 'status' => 'success'
             ]);
         } else {
@@ -368,3 +378,23 @@ Route::get('/link-storage', function () {
         ], 500);
     }
 });
+Route::get('/image-test', function () {
+    $path = storage_path('app/public/garments/lk3qCUlFUegf4n4XTP8UtB34XEOay1Z4ie7mZRFc.jpg');
+
+    if (!file_exists($path)) {
+        abort(404);
+    }
+
+    return response()->file($path);
+});
+Route::get('/image/{path}', function ($path) {
+
+    $file = storage_path('app/public/' . $path);
+
+    if (!file_exists($file)) {
+        abort(404);
+    }
+
+    return response()->file($file);
+
+})->where('path', '.*');

@@ -1,4 +1,6 @@
 <?php
+// siddhant pawar : 04-07-2026
+// siddhant pawawr 05-07-2026
 
 namespace App\Services;
 
@@ -46,6 +48,7 @@ class OrderService
                 'order_number' => 'ORD-' . strtoupper(uniqid()),
                 'appointment_id' => $appointment->id,
                 'customer_id' => $appointment->customer_id,
+                'pickup_staff_id' => $appointment->assigned_staff_id,
                 'visit_charge' => $appointment->visit_charge,
                 'delivery_address' => $deliveryAddress,
                 'notes' => $data['notes'] ?? null,
@@ -135,8 +138,12 @@ class OrderService
 
             // Validate OTP if transitioning to DELIVERED status and an OTP is set in the DB
             if ($status === OrderStatusEnum::DELIVERED && $order->delivery_otp !== null) {
-                if (trim($otp) !== trim($order->delivery_otp)) {
-                    throw new \Exception('Invalid Delivery OTP. Please enter the correct code provided by the customer.');
+                $invoice = $order->invoices()->first();
+                $isAlreadyPaid = $invoice && ($invoice->status === \App\Enums\InvoiceStatusEnum::PAID || $invoice->status->value === 'paid');
+                if ($paymentMode !== 'upi' && !$isAlreadyPaid) {
+                    if (trim($otp) !== trim($order->delivery_otp)) {
+                        throw new \Exception('Invalid Delivery OTP. Please enter the correct code provided by the customer.');
+                    }
                 }
             }
 
@@ -197,9 +204,9 @@ class OrderService
         });
     }
 
-    public function createDirectOrder(array $data, int $customerId): Order
+    public function createDirectOrder(array $data, int $customerId, bool $isSimulation = false): Order
     {
-        return DB::transaction(function () use ($data, $customerId) {
+        return DB::transaction(function () use ($data, $customerId, $isSimulation) {
             $deliveryAddress = $data['delivery_address'] ?? 'No Address Provided';
 
             $status = $data['status'] ?? (
@@ -275,9 +282,9 @@ class OrderService
             // Auto-generate invoice
             $this->invoiceService->generateForOrder($order);
 
-            // Dispatch notification only if not draft
+            // Dispatch notification only if not draft and not simulation
             $statusStr = is_object($order->status) ? $order->status->value : (string) $order->status;
-            if ($statusStr !== 'draft') {
+            if ($statusStr !== 'draft' && !$isSimulation) {
                 try {
                     $order->customer->notify(new \App\Notifications\OrderStatusNotification($order, 'pending'));
                 } catch (\Throwable $e) {

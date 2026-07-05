@@ -1,4 +1,6 @@
 <?php
+// siddhant pawar : 04-07-2026
+// siddhant pawawr 05-07-2026
 
 namespace App\Http\Controllers\API;
 
@@ -176,26 +178,34 @@ class InvoiceController extends Controller
             }
 
             // Build base list query
-            $listQuery = Transaction::with(['invoice.customer', 'invoice.invoiceable']);
+            $listQuery = Transaction::with([
+                'invoice.customer', 
+                'invoice.invoiceable' => function ($morphTo) {
+                    $morphTo->morphWith([
+                        \App\Models\Appointment::class => ['assignedStaff'],
+                        \App\Models\Order::class => ['pickupStaff', 'deliveryStaff'],
+                    ]);
+                }
+            ]);
 
             // Exclude pending cash transactions (they haven't been collected by staff yet)
-            $listQuery->where(function($q) {
+            $listQuery->where(function ($q) {
                 $q->where('status', '!=', TransactionStatusEnum::PENDING)
-                  ->orWhere('payment_mode', '!=', 'cash');
+                    ->orWhere('payment_mode', '!=', 'cash');
             });
 
             // Apply search filter (transaction number, invoice number, customer name, phone)
             if ($request->filled('search')) {
                 $search = $request->input('search');
-                $listQuery->where(function($q) use ($search) {
+                $listQuery->where(function ($q) use ($search) {
                     $q->where('transaction_number', 'like', "%{$search}%")
-                      ->orWhereHas('invoice', function($qi) use ($search) {
-                          $qi->where('invoice_number', 'like', "%{$search}%")
-                             ->orWhereHas('customer', function($qc) use ($search) {
-                                 $qc->where('name', 'like', "%{$search}%")
-                                    ->orWhere('phone', 'like', "%{$search}%");
-                             });
-                      });
+                        ->orWhereHas('invoice', function ($qi) use ($search) {
+                            $qi->where('invoice_number', 'like', "%{$search}%")
+                                ->orWhereHas('customer', function ($qc) use ($search) {
+                                    $qc->where('name', 'like', "%{$search}%")
+                                        ->orWhere('phone', 'like', "%{$search}%");
+                                });
+                        });
                 });
             }
 
@@ -234,7 +244,7 @@ class InvoiceController extends Controller
             ]);
 
             $transaction = Transaction::findOrFail($id);
-            
+
             $receivedAmount = $request->input('received_amount', $transaction->amount);
             $notes = $request->input('notes');
 
@@ -251,12 +261,12 @@ class InvoiceController extends Controller
             ]);
 
             $invoice = $transaction->invoice;
-            
+
             // Check if all transactions for this invoice are successful
             $allSuccessful = !$invoice->transactions()
                 ->where('status', '!=', TransactionStatusEnum::SUCCESSFUL->value)
                 ->exists();
-                
+
             if ($allSuccessful) {
                 $invoice->update([
                     'status' => InvoiceStatusEnum::PAID,
@@ -308,12 +318,12 @@ class InvoiceController extends Controller
             ]);
 
             $invoice = $txn->invoice;
-            
+
             // Check if all transactions for this invoice are successful
             $allSuccessful = !$invoice->transactions()
                 ->where('status', '!=', TransactionStatusEnum::SUCCESSFUL->value)
                 ->exists();
-                
+
             if ($allSuccessful) {
                 $invoice->update([
                     'status' => InvoiceStatusEnum::PAID,
@@ -356,8 +366,8 @@ class InvoiceController extends Controller
         try {
             $user = $request->user();
             $txn = \App\Models\Transaction::with('invoice')->findOrFail($transactionId);
-            
-            if (!$user->isAdmin() && $txn->invoice->customer_id !== $user->id) {
+
+            if (!$user->isAdmin() && !$user->isDeliveryStaff() && $txn->invoice->customer_id !== $user->id) {
                 return $this->errorResponse('Unauthorized', 403);
             }
 
@@ -400,7 +410,7 @@ class InvoiceController extends Controller
 
             $gatewayResponse = $txn->gateway_response ?? [];
             $gatewayResponse['razorpay_order_id'] = $rzpOrderId;
-            
+
             $txn->update([
                 'gateway_response' => $gatewayResponse,
             ]);
@@ -548,6 +558,40 @@ class InvoiceController extends Controller
             ], 'Razorpay order initiated successfully');
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to initiate Razorpay order', 500, $e->getMessage());
+        }
+    }
+
+
+
+    public function initiateAdvancePayment(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'appointment_id' => 'required|exists:appointments,id',
+                'amount' => 'required|numeric|min:1',
+            ]);
+
+            $appointment = Appointment::findOrFail($validated['appointment_id']);
+            $invoice = $appointment->invoices()->first();
+            if (!$invoice) {
+                $invoice = app(\App\Services\InvoiceService::class)->generateForAppointment($appointment);
+            }
+
+            // Delete existing pending transactions
+            $invoice->transactions()->where('status', TransactionStatusEnum::PENDING->value)->delete();
+
+            // Create new pending transaction for the advance amount
+            $txn = $invoice->transactions()->create([
+                'transaction_number' => 'TXN-' . strtoupper(uniqid()),
+                'payment_mode' => 'online',
+                'amount' => $validated['amount'],
+                'status' => TransactionStatusEnum::PENDING,
+            ]);
+
+            // Initiate Razorpay order for this transaction
+            return $this->createRazorpayOrder($request, $txn->id);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to initiate advance payment order: ' . $e->getMessage(), 500);
         }
     }
 }

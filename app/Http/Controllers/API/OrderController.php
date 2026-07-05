@@ -1,4 +1,5 @@
 <?php
+// siddhant pawawr 05-07-2026
 
 namespace App\Http\Controllers\API;
 
@@ -13,24 +14,25 @@ use App\Enums\OrderStatusEnum;
 
 class OrderController extends Controller
 {
-    public function __construct(protected OrderService $service) {
+    public function __construct(protected OrderService $service)
+    {
 
-    
+
     }
-    
+
 
     public function index(Request $request)
     {
-        $query = Order::with(['customer', 'items.garment', 'items.tailor', 'measurements', 'invoices.transactions'])
+        $query = Order::with(['customer', 'items.garment', 'items.tailor', 'measurements', 'invoices.transactions', 'pickupStaff', 'deliveryStaff'])
             ->where('status', '!=', \App\Enums\OrderStatusEnum::Draft);
-        
+
         // If customer, only see own orders
         if ($request->user() && $request->user()->role->value === 'customer') {
             $query->where('customer_id', $request->user()->id);
         }
 
         // Add filters here if needed
-        
+
         return $this->successResponse(OrderResource::collection($query->latest()->get()), 'Orders fetched');
     }
 
@@ -43,7 +45,8 @@ class OrderController extends Controller
             'measurements',
             'invoices.transactions',
             'statusLogs',
-            'deliveryStaff'
+            'deliveryStaff',
+            'pickupStaff'
         ])->findOrFail($id);
 
         $user = $request->user();
@@ -59,7 +62,7 @@ class OrderController extends Controller
                 return $this->errorResponse('Unauthorized', 403);
             }
         }
-                      
+
         return $this->successResponse(new OrderResource($order), 'Order fetched');
     }
 
@@ -96,33 +99,68 @@ class OrderController extends Controller
     public function updateStatus(Request $request, int $id)
     {
         $user = $request->user();
-        if ($user->isCustomer()) {
-            return $this->errorResponse('Forbidden', 403);
-        }
-
         $order = Order::findOrFail($id);
-        if ($user->isDeliveryStaff()) {
-            if ($order->pickup_staff_id != $user->id && $order->delivery_staff_id != $user->id) {
-                return $this->errorResponse('Unauthorized', 403);
-            }
-        }
-        if ($user->isTailor()) {
-            $hasAssignedItem = $order->items()->where('assigned_tailor_id', $user->id)->exists();
-            if (!$hasAssignedItem) {
-                return $this->errorResponse('Unauthorized', 403);
-            }
-        }
 
-        $validated = $request->validate([
-            'status' => 'required|string|in:pending,accepted,assigned,stitching,ready,out_for_delivery,delivered,cancelled',
-            'remarks' => 'nullable|string',
-            'otp' => 'nullable|string',
-            'payment_mode' => 'nullable|string|in:cash,upi,card',
-        ]);
+        if ($user->isCustomer()) {
+            if ($order->customer_id !== $user->id) {
+                return $this->errorResponse('Unauthorized', 403);
+            }
+            
+            $validated = $request->validate([
+                'status' => 'required|string|in:cancelled',
+                'remarks' => 'nullable|string',
+            ]);
+            
+            $currentStatus = is_object($order->status) ? $order->status->value : (string) $order->status;
+            if ($currentStatus !== 'pending') {
+                return $this->errorResponse('Cannot cancel an order that has already been accepted or processed.', 400);
+            }
+
+            // Prevent cancelling if the order has an appointment associated with it (created through appointment confirmation)
+            if ($order->appointment_id !== null) {
+                return $this->errorResponse('Orders created through an appointment cannot be cancelled.', 400);
+            }
+
+            // Prevent cancelling if already paid (advance_paid > 0 or has successful transactions)
+            $hasPaidTransactions = $order->invoices()->whereHas('transactions', function($q) {
+                $q->where('status', 'completed');
+            })->exists() || $order->invoices()->where('status', 'paid')->exists();
+
+            if (doubleval($order->advance_paid) > 0 || $hasPaidTransactions) {
+                return $this->errorResponse('Paid orders cannot be cancelled online. Please contact support.', 400);
+            }
+            
+            // Enforce 24-hour limit from order placement
+            $placedAt = $order->created_at;
+            if (now()->diffInHours($placedAt) >= 24) {
+                return $this->errorResponse('Orders can only be cancelled within 24 hours of placing them.', 400);
+            }
+            
+            $validated['remarks'] = $validated['remarks'] ?? 'Cancelled by customer';
+        } else {
+            if ($user->isDeliveryStaff()) {
+                if ($order->pickup_staff_id != $user->id && $order->delivery_staff_id != $user->id) {
+                    return $this->errorResponse('Unauthorized', 403);
+                }
+            }
+            if ($user->isTailor()) {
+                $hasAssignedItem = $order->items()->where('assigned_tailor_id', $user->id)->exists();
+                if (!$hasAssignedItem) {
+                    return $this->errorResponse('Unauthorized', 403);
+                }
+            }
+
+            $validated = $request->validate([
+                'status' => 'required|string|in:pending,accepted,assigned,stitching,ready,out_for_delivery,delivered,cancelled',
+                'remarks' => 'nullable|string',
+                'otp' => 'nullable|string',
+                'payment_mode' => 'nullable|string|in:cash,upi,card',
+            ]);
+        }
 
         try {
             $enumStatus = OrderStatusEnum::tryFrom($validated['status']);
-            
+
             $order = $this->service->updateStatus(
                 $id,
                 $enumStatus,
@@ -141,12 +179,12 @@ class OrderController extends Controller
     {
         try {
             $validated = $request->validated();
-            
+
             $customerId = $request->user()->id;
             if ($request->user()->isAdmin()) {
                 $customerId = $request->input('customer_id') ?? $request->user()->id;
             }
-            
+
             // This is a direct order (no appointment)
             $order = $this->service->createDirectOrder($validated, $customerId);
 
@@ -158,86 +196,86 @@ class OrderController extends Controller
 
 
     public function assignTailor(Request $request, int $orderId, int $itemId)
-{
-    $validated = $request->validate([
-        'tailor_id' => 'required|exists:users,id',
-    ]);
-
-    $tailor = \App\Models\User::where('id', $validated['tailor_id'])
-        ->where('role', 'tailor')
-        ->first();
-
-    if (!$tailor) {
-        return $this->errorResponse(
-            'Selected user is not a tailor',
-            422
-        );
-    }
-
-    $item = \App\Models\OrderItem::where('order_id', $orderId)
-        ->where('id', $itemId)
-        ->firstOrFail();
-
-    $item->update([
-        'assigned_tailor_id' => $validated['tailor_id'],
-        'status' => 'assigned',
-    ]);
-
-    $item->load('tailor');
-
-    return $this->successResponse(
-        $item,
-        'Tailor assigned successfully'
-    );
-}
-
-   public function assignDelivery(Request $request, int $orderId)
-{
-    try {
-
-        // 1. Validate input
+    {
         $validated = $request->validate([
-            'delivery_staff_id' => 'required|exists:users,id',
+            'tailor_id' => 'required|exists:users,id',
         ]);
 
-        // 2. Get user safely
-        $deliveryBoy = \App\Models\User::find($validated['delivery_staff_id']);
+        $tailor = \App\Models\User::where('id', $validated['tailor_id'])
+            ->where('role', 'tailor')
+            ->first();
 
-        // 3. Check role properly (IMPORTANT FIX)
-        $roleVal = is_object($deliveryBoy->role) ? $deliveryBoy->role->value : $deliveryBoy->role;
-        if ($roleVal !== 'delivery_staff') {
+        if (!$tailor) {
             return $this->errorResponse(
-                'Selected user is not delivery staff',
+                'Selected user is not a tailor',
                 422
             );
         }
 
-        // 4. Find order
-        $order = \App\Models\Order::findOrFail($orderId);
+        $item = \App\Models\OrderItem::where('order_id', $orderId)
+            ->where('id', $itemId)
+            ->firstOrFail();
 
-        // 5. Update order
-        $order->update([
-            'delivery_staff_id' => $validated['delivery_staff_id'],
+        $item->update([
+            'assigned_tailor_id' => $validated['tailor_id'],
+            'status' => 'assigned',
         ]);
 
-        // 6. Reload relations properly
-        $order->load(['deliveryStaff', 'customer', 'items']);
+        $item->load('tailor');
 
-        // 7. Return fresh response
         return $this->successResponse(
-            $order->fresh(),
-            'Delivery staff assigned successfully'
+            $item,
+            'Tailor assigned successfully'
         );
-
-    } catch (\Throwable $e) {
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Assignment failed',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
+
+    public function assignDelivery(Request $request, int $orderId)
+    {
+        try {
+
+            // 1. Validate input
+            $validated = $request->validate([
+                'delivery_staff_id' => 'required|exists:users,id',
+            ]);
+
+            // 2. Get user safely
+            $deliveryBoy = \App\Models\User::find($validated['delivery_staff_id']);
+
+            // 3. Check role properly (IMPORTANT FIX)
+            $roleVal = is_object($deliveryBoy->role) ? $deliveryBoy->role->value : $deliveryBoy->role;
+            if ($roleVal !== 'delivery_staff') {
+                return $this->errorResponse(
+                    'Selected user is not delivery staff',
+                    422
+                );
+            }
+
+            // 4. Find order
+            $order = \App\Models\Order::findOrFail($orderId);
+
+            // 5. Update order
+            $order->update([
+                'delivery_staff_id' => $validated['delivery_staff_id'],
+            ]);
+
+            // 6. Reload relations properly
+            $order->load(['deliveryStaff', 'customer', 'items']);
+
+            // 7. Return fresh response
+            return $this->successResponse(
+                $order->fresh(),
+                'Delivery staff assigned successfully'
+            );
+
+        } catch (\Throwable $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Assignment failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
 
     // POST /api/orders/{id}/approve
@@ -245,9 +283,9 @@ class OrderController extends Controller
     {
         try {
             $order = \App\Models\Order::where('id', $id)
-                        ->where('customer_id', $request->user()->id)
-                        ->firstOrFail();
-            
+                ->where('customer_id', $request->user()->id)
+                ->firstOrFail();
+
             $statusStr = is_object($order->status) ? $order->status->value : (string) $order->status;
 
             if ($statusStr !== 'draft') {
@@ -309,7 +347,7 @@ class OrderController extends Controller
                     $order->setRelation('items', collect([$selectedItem]));
 
                     // Filter order measurements collection to only contain measurements matching this order_item_id or garment_id
-                    $filteredMeasurements = $order->measurements->filter(function($m) use ($itemId, $selectedItem) {
+                    $filteredMeasurements = $order->measurements->filter(function ($m) use ($itemId, $selectedItem) {
                         return ($m->order_item_id == $itemId) || ($m->garment_id == $selectedItem->garment_id);
                     });
                     $order->setRelation('measurements', $filteredMeasurements);
@@ -321,7 +359,7 @@ class OrderController extends Controller
                 'selectedItem' => $selectedItem,
             ]);
 
-            $fileName = $selectedItem 
+            $fileName = $selectedItem
                 ? 'stitching-slip-' . $order->order_number . '-' . str_replace(' ', '-', strtolower($selectedItem->garment_name)) . '.pdf'
                 : 'stitching-slip-' . $order->order_number . '.pdf';
 
@@ -343,7 +381,7 @@ class OrderController extends Controller
             if (!$user->isAdmin() && $order->customer_id !== $user->id) {
                 return $this->errorResponse('Unauthorized', 403);
             }
-            $order->invoices->each(function($invoice) {
+            $order->invoices->each(function ($invoice) {
                 $invoice->transactions()->delete();
                 $invoice->delete();
             });
@@ -454,7 +492,7 @@ class OrderController extends Controller
                     $customerId = $orderData['customer_id'];
                 }
 
-                $createdOrder = $this->service->createDirectOrder($orderData, $customerId);
+                $createdOrder = $this->service->createDirectOrder($orderData, $customerId, true);
                 $invoice = $createdOrder->invoices()->first();
                 if ($invoice) {
                     $txn = $invoice->transactions()->where('status', 'pending')->first();

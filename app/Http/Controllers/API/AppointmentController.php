@@ -144,7 +144,7 @@ class AppointmentController extends Controller
                 if ($customer && !empty($customer->phone)) {
                     try {
                         $otp = (string) rand(100000, 999999);
-                        
+
                         // Clear existing OTPs and store the new one
                         \App\Models\Otp::where('email', $customer->phone)->delete();
                         \App\Models\Otp::create([
@@ -155,7 +155,7 @@ class AppointmentController extends Controller
 
                         $smsService = app(\App\Services\SmsService::class);
                         $smsService->sendOtp($customer->phone, $otp);
-                        
+
                         \Illuminate\Support\Facades\Log::info("Admin created appointment ID: {$data->id}. OTP verification sent to customer phone: {$customer->phone}");
                     } catch (\Exception $smsEx) {
                         \Illuminate\Support\Facades\Log::error('Failed to send OTP verification SMS for admin appointment creation: ' . $smsEx->getMessage());
@@ -175,15 +175,42 @@ class AppointmentController extends Controller
         try {
             $appointment = Appointment::findOrFail($id);
 
-            // FIX #2 & #3: use customer_id consistently and check role robustly
-            if (
-                $this->isCustomer($request) &&
-                $appointment->customer_id !== $request->user()->id
-            ) {
-                return $this->errorResponse('Unauthorized', 403);
-            }
-
             $validated = $request->validated();
+
+            if ($this->isCustomer($request)) {
+                if ($appointment->customer_id !== $request->user()->id) {
+                    return $this->errorResponse('Unauthorized', 403);
+                }
+                
+                if (isset($validated['status'])) {
+                    $newStatus = is_object($validated['status']) ? $validated['status']->value : $validated['status'];
+                    if ($newStatus === 'cancelled') {
+                        $currentStatus = is_object($appointment->status) ? $appointment->status->value : $appointment->status;
+                        if (!in_array($currentStatus, ['pending', 'confirmed'])) {
+                            return $this->errorResponse('Cannot cancel an appointment that is already in progress or completed.', 400);
+                        }
+
+                        // Prevent cancelling if already paid
+                        if ($appointment->payment_status === 'paid') {
+                            return $this->errorResponse('Paid appointments cannot be cancelled online. Please contact support.', 400);
+                        }
+
+                        // Enforce 48-hour limit from booking creation
+                        $placedAt = $appointment->created_at;
+                        if (now()->diffInHours($placedAt) >= 48) {
+                            return $this->errorResponse('Appointments can only be cancelled within 48 hours of booking.', 400);
+                        }
+
+                        // Enforce 24-hour limit before scheduled visit time
+                        $scheduledAt = \Carbon\Carbon::parse($appointment->appointment_date->format('Y-m-d') . ' ' . ($appointment->appointment_time ?? '00:00'));
+                        if (now()->diffInHours($scheduledAt, false) < 24) {
+                            return $this->errorResponse('Appointments can only be cancelled at least 24 hours before the scheduled visit time.', 400);
+                        }
+                    } else {
+                        return $this->errorResponse('Unauthorized status update.', 403);
+                    }
+                }
+            }
 
             $data = $this->service->update($appointment, $validated);
             return $this->successResponse($data, 'Appointment updated');
@@ -507,7 +534,7 @@ class AppointmentController extends Controller
                 }
                 unset($appointmentData['user_id']);
 
-                $appt = $this->service->create($appointmentData);
+                $appt = $this->service->create($appointmentData, true);
                 $invoice = $appt->invoices()->first();
                 if ($invoice) {
                     $txn = $invoice->transactions()->where('status', 'pending')->first();

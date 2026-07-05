@@ -29,7 +29,7 @@ class AuthController extends Controller
         $existingUser = null;
 
         if (!empty($phoneInput)) {
-            $existingUser = User::where(function($query) use ($phoneInput, $emailInput) {
+            $existingUser = User::where(function ($query) use ($phoneInput, $emailInput) {
                 $query->where('phone', $phoneInput);
                 if (!empty($emailInput)) {
                     $query->orWhere('email', $emailInput);

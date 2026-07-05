@@ -1,4 +1,5 @@
 <?php
+// siddhant pawawr 05-07-2026
 
 namespace App\Notifications;
 
@@ -44,30 +45,62 @@ class OrderStatusNotification extends Notification
             ->subject("Order #{$orderNum} Update: {$formattedStatus}")
             ->greeting("Hello {$notifiable->name}!");
 
+        $isAppointment = $this->order->appointment_id !== null;
+        
         switch ($this->status) {
             case 'pending':
-                $mail->line("We have received your order #{$orderNum}! We are reviewing the details and preparing to assign a tailor.")
-                     ->line("Total Price: ₹{$totalPrice}");
+                if ($isAppointment) {
+                    $mail->line("We have received your order #{$orderNum}! We are reviewing the details and preparing to assign a tailor.");
+                } else {
+                    $mail->line("We have received your order #{$orderNum}! We are reviewing the details and preparing your items.");
+                }
+                $mail->line("Total Price: ₹{$totalPrice}");
                 break;
             case 'accepted':
-                $mail->line("Great news! Your order #{$orderNum} has been accepted by our staff and is in queue.")
-                     ->line("A skilled tailor is being assigned to bring your custom design to life.");
+                if ($isAppointment) {
+                    $mail->line("Great news! Your order #{$orderNum} has been accepted by our staff and is in queue.")
+                         ->line("A skilled tailor is being assigned to bring your custom design to life.");
+                } else {
+                    $mail->line("Great news! Your order #{$orderNum} has been accepted by our staff and is being processed.");
+                }
+                if ($this->order->delivery_date) {
+                    $formattedDate = $this->order->delivery_date instanceof \Carbon\Carbon 
+                        ? $this->order->delivery_date->format('j F Y') 
+                        : \Carbon\Carbon::parse($this->order->delivery_date)->format('j F Y');
+                    $mail->line("Estimated Delivery Date: **{$formattedDate}**");
+                }
                 break;
             case 'stitching':
-                $mail->line("Your garments for order #{$orderNum} are now under active stitching by our master tailor!")
-                     ->line("We are paying close attention to every detail to ensure the perfect fit.");
+                if ($isAppointment) {
+                    $mail->line("Your garments for order #{$orderNum} are now under active stitching by our master tailor!")
+                         ->line("We are paying close attention to every detail to ensure the perfect fit.");
+                } else {
+                    $mail->line("Your order #{$orderNum} is being carefully prepared and packaged by our team.");
+                }
                 break;
             case 'completed':
-                $mail->line("Stitching complete! Your custom garment under order #{$orderNum} has been finished and quality-checked by our tailor.")
-                     ->line("It is being packed carefully and handed over to our delivery staff.");
+                if ($isAppointment) {
+                    $mail->line("Stitching complete! Your custom garment under order #{$orderNum} has been finished and quality-checked by our tailor.")
+                         ->line("It is being packed carefully and handed over to our delivery staff.");
+                } else {
+                    $mail->line("Preparation complete! Your items under order #{$orderNum} have been packed carefully and handed over to our delivery staff.");
+                }
                 break;
             case 'out_for_delivery':
-                $mail->line("Out for Delivery! 🚚 Your custom garment under order #{$orderNum} is on its way to your address.")
-                     ->line("Our delivery driver will reach you shortly. Please be available to receive your package.");
+                if ($isAppointment) {
+                    $mail->line("Out for Delivery! 🚚 Your custom garment under order #{$orderNum} is on its way to your address.");
+                } else {
+                    $mail->line("Out for Delivery! 🚚 Your package under order #{$orderNum} is on its way to your address.");
+                }
+                $mail->line("Our delivery driver will reach you shortly. Please be available to receive your package.");
                 break;
             case 'delivered':
-                $mail->line("Delivered! 🎉 Your order #{$orderNum} has been successfully delivered and completed.")
-                     ->line("We hope you love your new custom garment! Please take a moment to leave us a review on the portal.");
+                $mail->line("Delivered! 🎉 Your order #{$orderNum} has been successfully delivered and completed.");
+                if ($isAppointment) {
+                    $mail->line("We hope you love your new custom garment! Please take a moment to leave us a review on the portal.");
+                } else {
+                    $mail->line("We hope you love your new purchase! Please take a moment to leave us a review on the portal.");
+                }
                 break;
             default:
                 $mail->line("Your order #{$orderNum} status has transitioned to: **{$formattedStatus}**.");

@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Notifications;
 
@@ -35,7 +36,7 @@ class SendOtpNotification extends Notification
     {
         return (new MailMessage)
             ->subject('Verify Your Account - One-Time Password (OTP)')
-            ->greeting('Hello ' . $notifiable->name . '!')
+            ->greeting('Hello ' . ($notifiable->name ?? 'User') . '!')
             ->line('Thank you for choosing our Tailor & Styling services. To secure your account and verify your action, please use the following One-Time Password (OTP):')
             ->line('')
             ->line('Your Verification Code: **' . $this->otp . '**')

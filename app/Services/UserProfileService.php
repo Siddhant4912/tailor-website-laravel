@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Services;
 
@@ -26,16 +27,16 @@ class UserProfileService
             ]);
         }
 
-        // Return combined data mapped perfectly for frontend, falling back to users table if profile is empty
         return [
-            'name'         => $user->name,
-            'email'        => $user->email,
-            'phone'        => $user->phone,
-            'address_line' => $profile->address ?: ($user->address_line ?: ''), // DB 'address' mapped to React 'address_line'
-            'city'         => $profile->city ?: ($user->city ?: ''),
-            'state'        => $profile->state ?: ($user->state ?: ''),
-            'pincode'      => $profile->pincode ?: ($user->pincode ?: ''),
-            'profile_photo'=> $profile->profile_photo
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'address_line' => $profile->address ?: ($user->address_line ?: ''),
+            'city' => $profile->city ?: ($user->city ?: ''),
+            'state' => $profile->state ?: ($user->state ?: ''),
+            'pincode' => $profile->pincode ?: ($user->pincode ?: ''),
+            'profile_photo' => $profile->profile_photo ?? null,
         ];
     }
 
@@ -49,6 +50,15 @@ class UserProfileService
         // 1. Update User Table (with address fields sync)
         if (isset($data['name']))  $user->name = $data['name'];
         if (isset($data['phone'])) $user->phone = $data['phone'];
+        if (isset($data['email'])) {
+            if ($data['email'] !== $user->email) {
+                $exists = User::where('email', $data['email'])->exists();
+                if ($exists) {
+                    throw new \InvalidArgumentException('The email has already been taken.');
+                }
+                $user->email = $data['email'];
+            }
+        }
         if (array_key_exists('address_line', $data)) $user->address_line = $data['address_line'];
         if (array_key_exists('city', $data))         $user->city = $data['city'];
         if (array_key_exists('state', $data))        $user->state = $data['state'];

@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Http\Controllers\API;
 
@@ -69,6 +70,102 @@ class UserProfileController extends Controller
             return $this->successResponse($profile, 'Profile photo updated successfully');
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to update profile photo', 500, $e->getMessage());
+        }
+    }
+
+    public function sendOtp(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:email,phone',
+            'value' => 'required|string',
+        ]);
+
+        $type = $request->type;
+        $value = $request->value;
+        $userId = $request->user()->id;
+
+        // Check if value is already taken by another account
+        if ($type === 'email') {
+            $exists = \App\Models\User::where('email', $value)->where('id', '!=', $userId)->exists();
+            if ($exists) {
+                return $this->errorResponse('This email is already in use by another account.', 400);
+            }
+        } else {
+            $exists = \App\Models\User::where('phone', $value)->where('id', '!=', $userId)->exists();
+            if ($exists) {
+                return $this->errorResponse('This phone number is already in use by another account.', 400);
+            }
+        }
+
+        // Generate OTP code
+        $otp = (string) rand(100000, 999999);
+
+        // Store OTP in database
+        \App\Models\Otp::updateOrCreate(
+            ['email' => $value],
+            [
+                'otp' => $otp,
+                'expires_at' => now()->addMinutes(10),
+            ]
+        );
+
+        // Send OTP
+        try {
+            if ($type === 'email') {
+                \Illuminate\Support\Facades\Notification::route('mail', $value)
+                    ->notify(new \App\Notifications\SendOtpNotification($otp));
+            } else {
+                $smsService = app(\App\Services\SmsService::class);
+                $smsService->sendOtp($value, $otp);
+            }
+        } catch (\Exception $e) {
+            \Log::error("Failed to send OTP verification for profile update: " . $e->getMessage());
+            return $this->errorResponse('Failed to send verification code. Please try again.', 500, $e->getMessage());
+        }
+
+        return $this->successResponse(null, 'Verification code has been sent successfully.');
+    }
+
+    public function verifyOtp(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:email,phone',
+            'value' => 'required|string',
+            'otp' => 'required|string|size:6',
+        ]);
+
+        $type = $request->type;
+        $value = $request->value;
+        $otp = $request->otp;
+        $user = $request->user();
+
+        // Verify OTP
+        $otpRecord = \App\Models\Otp::where('email', $value)
+            ->where('otp', $otp)
+            ->latest()
+            ->first();
+
+        if (!$otpRecord || $otpRecord->isExpired()) {
+            return $this->errorResponse('Invalid or expired verification code.', 400);
+        }
+
+        // Consume OTP
+        $otpRecord->delete();
+
+        // Update the field
+        try {
+            if ($type === 'email') {
+                $user->email = $value;
+            } else {
+                $user->phone = $value;
+            }
+            $user->save();
+
+            // Refresh profile from service
+            $profile = $this->service->getProfile($user->id);
+            return $this->successResponse($profile, ucfirst($type) . ' updated successfully!');
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to update field.', 500, $e->getMessage());
         }
     }
 }

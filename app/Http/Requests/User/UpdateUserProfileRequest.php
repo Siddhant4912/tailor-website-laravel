@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Http\Requests\User;
 
@@ -23,6 +24,7 @@ class UpdateUserProfileRequest extends FormRequest
 {
     return [
         'name'         => 'nullable|string|max:255',
+        'email'        => 'nullable|email|max:255',
         'phone'        => 'nullable|string|max:20',
         'address_line' => 'nullable|string|max:255',
         'city'         => 'nullable|string|max:100',

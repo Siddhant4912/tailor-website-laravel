@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Services;
 
@@ -39,13 +40,19 @@ class AppointmentService
         return $this->withRelations(Appointment::where('id', $id))->firstOrFail();
     }
 
-    public function create(array $data)
+    public function create(array $data, bool $isSimulation = false)
     {
-        return DB::transaction(function () use ($data) {
-            $data['visit_charge'] = (isset($data['measurement_type']) && $data['measurement_type'] === 'onsite_visit') ? 200 : 0;
+        return DB::transaction(function () use ($data, $isSimulation) {
+            $visitChargeSetting = \App\Models\Setting::where('key', 'visit_charge')->first();
+            $defaultVisitCharge = $visitChargeSetting ? (float)$visitChargeSetting->value : 200.00;
+            $data['visit_charge'] = (isset($data['measurement_type']) && $data['measurement_type'] === 'onsite_visit') ? $defaultVisitCharge : 0;
             $data['deposit_amount'] = $data['visit_charge'];
             
-            // Removed legacy logic that forced 'draft' status for online payments.
+            // If payment preference is online, we create it as 'draft' first until payment is verified
+            if (isset($data['payment_preference']) && $data['payment_preference'] === 'online' && !isset($data['status'])) {
+                $data['status'] = 'draft';
+            }
+
             $appointment = Appointment::create($data);
 
             if (!empty($data['items'])) {
@@ -84,9 +91,9 @@ class AppointmentService
 
             $created = $this->find($appointment->id);
 
-            // Dispatch notification only if not draft
+            // Dispatch notification only if not draft and not simulation
             $statusStr = is_object($created->status) ? $created->status->value : (string) $created->status;
-            if ($statusStr !== 'draft') {
+            if ($statusStr !== 'draft' && !$isSimulation) {
                 try {
                     $created->customer->notify(new \App\Notifications\AppointmentStatusNotification($created, 'pending'));
                 } catch (\Throwable $e) {

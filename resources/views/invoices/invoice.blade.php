@@ -1,3 +1,4 @@
+{{-- siddhant pawawr 05-07-2026 --}}
 <!DOCTYPE html>
 <html>
 <head>
@@ -249,21 +250,31 @@
   <table class="layout-table" style="border-bottom: 2px solid #c8945e; padding-bottom: 12px; margin-bottom: 20px;">
     <tr>
       <td style="width: 60%;">
-        <div class="brand-title"><span class="brand-accent">{{ config('company.name', 'STITCH & STYLE') }}</span></div>
-        <div class="tagline">{{ config('company.tagline', 'Professional Ladies Tailoring Services') }}</div>
+        <div style="min-height: 54px; margin-bottom: 6px;">
+          @if(file_exists(public_path('images/logo.png')))
+            <img src="{{ public_path('images/logo.png') }}" style="float: left; height: 50px; width: 50px; border-radius: 8px; margin-right: 12px;" />
+          @endif
+          <div style="float: left; margin-top: 4px;">
+            <div class="brand-title"><span class="brand-accent">{{ config('company.name', 'STITCH & STYLE') }}</span></div>
+            <div class="tagline">{{ config('company.tagline', 'Professional Ladies Tailoring Services') }}</div>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
         <div class="company-details">
           {{ config('company.address', '') }}<br>
           Phone: {{ config('company.phone', '') }}
+          {{--
           @if(config('company.gstin'))
             &nbsp;|&nbsp; GSTIN: {{ config('company.gstin') }}
           @endif
+          --}}
         </div>
       </td>
       <td style="text-align: right; width: 40%;">
         <div class="invoice-title">INVOICE</div>
         <div class="invoice-meta">
           Invoice No: <span class="meta-value">{{ $invoice->invoice_number }}</span><br>
-          Date: <span class="meta-value">{{ \Carbon\Carbon::parse($invoice->generated_at)->format('d M Y') }}</span><br>
+          Date: <span class="meta-value">{{ \Carbon\Carbon::parse($invoice->generated_at)->format('j F Y') }}</span><br>
           @if($paymentMode)
             Mode: <span class="meta-value" style="text-transform: uppercase;">{{ str_replace('_', ' ', $paymentMode) }}</span><br>
           @endif
@@ -288,6 +299,9 @@
           <div class="details-name">{{ $order->customer->name ?? 'Customer' }}</div>
           <div class="details-text">
             {{ $order->delivery_address }}
+            @if($order->customer->email)
+              <div style="margin-top: 4px;">Email: {{ $order->customer->email }}</div>
+            @endif
             @if($order->customer->phone)
               <div style="margin-top: 4px; font-weight: bold;">Phone: {{ $order->customer->phone }}</div>
             @endif
@@ -300,9 +314,9 @@
           <div class="section-title">Order Details</div>
           <div class="details-name">Order #{{ $order->order_number }}</div>
           <div class="details-text">
-            Order Date: {{ \Carbon\Carbon::parse($order->created_at)->format('d M Y') }}
+            Order Date: {{ \Carbon\Carbon::parse($order->created_at)->format('j F Y') }}
             @if($order->delivery_date)
-              <div style="margin-top: 4px; font-weight: bold;">Expected Delivery: {{ \Carbon\Carbon::parse($order->delivery_date)->format('d M Y') }}</div>
+              <div style="margin-top: 4px; font-weight: bold;">Expected Delivery: {{ \Carbon\Carbon::parse($order->delivery_date)->format('j F Y') }}</div>
             @endif
           </div>
         </div>
@@ -358,10 +372,11 @@
   </div>
 
   @php
+    $invoiceSubtotal = $invoice->subtotal ?? 0;
     $gstAmount = $invoice->gst_amount ?? 0;
     $advancePaid = $invoice->advance_paid ?? 0;
     $visitCharge = $invoice->visit_charge ?? 0;
-    $grossTotal = $subtotal + $gstAmount + $visitCharge;
+    $grossTotal = $invoice->total_amount ?? 0;
     
     $isPaid = $statusVal === 'paid';
     $balancePaid = $isPaid ? max(0, $grossTotal - $advancePaid) : 0;
@@ -381,7 +396,7 @@
         <table class="totals-table">
           <tr>
             <td>Subtotal</td>
-            <td class="amount">&#8377;{{ number_format($subtotal, 2) }}</td>
+            <td class="amount">&#8377;{{ number_format($invoiceSubtotal, 2) }}</td>
           </tr>
           @if($gstAmount > 0)
           <tr>
@@ -428,6 +443,37 @@
       </td>
     </tr>
   </table>
+
+  {{-- TRANSACTIONS HISTORY --}}
+  @if($invoice->transactions->count() > 0)
+  <div class="section" style="margin-top: 20px; margin-bottom: 20px;">
+    <div class="section-title" style="margin-bottom: 6px; color: #c8945e; font-size: 8px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px;">Payment Ledger History</div>
+    <table class="items-table" style="font-size: 8.5px;">
+      <thead>
+        <tr>
+          <th style="text-align: left; padding: 6px 8px;">Txn Reference</th>
+          <th style="text-align: left; width: 120px; padding: 6px 8px;">Payment Mode</th>
+          <th style="text-align: right; width: 100px; padding: 6px 8px;">Amount</th>
+          <th style="text-align: center; width: 100px; padding: 6px 8px;">Status</th>
+          <th style="text-align: right; width: 120px; padding: 6px 8px;">Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($invoice->transactions as $txn)
+        <tr>
+          <td style="font-weight: bold; padding: 6px 8px;">{{ $txn->transaction_number ?? 'Pending Reference' }}</td>
+          <td style="text-transform: uppercase; padding: 6px 8px;">{{ str_replace('_', ' ', $txn->payment_mode) }}</td>
+          <td style="text-align: right; font-weight: bold; padding: 6px 8px;">&#8377;{{ number_format($txn->amount, 2) }}</td>
+          <td style="text-align: center; text-transform: uppercase; font-weight: bold; padding: 6px 8px; color: {{ $txn->status === 'successful' ? '#166534' : ($txn->status === 'pending' ? '#b45309' : '#991b1b') }};">
+            {{ $txn->status }}
+          </td>
+          <td style="text-align: right; padding: 6px 8px;">{{ \Carbon\Carbon::parse($txn->created_at)->format('j F Y h:i A') }}</td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
+  </div>
+  @endif
 
   {{-- FOOTER --}}
   <div class="footer">

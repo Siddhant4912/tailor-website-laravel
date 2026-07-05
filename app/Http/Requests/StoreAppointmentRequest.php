@@ -13,9 +13,10 @@ class StoreAppointmentRequest extends FormRequest
 
     public function rules(): array
     {
+        $maxDate = now()->addDays(7)->format('Y-m-d');
         return [
             'type' => 'required|string|in:catalog_visit,custom_cloth',
-            'appointment_date' => 'required|date|after_or_equal:today',
+            'appointment_date' => 'required|date|after:today|before_or_equal:' . $maxDate,
             'appointment_time' => 'required|date_format:H:i',
             
             'address_line' => 'required|string',

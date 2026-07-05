@@ -1,4 +1,5 @@
 <?php
+// siddhant pawar : 04-07-2026
 
 namespace App\Services;
 
@@ -82,15 +83,20 @@ class InvoiceService
                 }
             }
 
-            $totalAmount = $baseSubtotal + $gstAmount + $appointment->visit_charge;
+            $visitCharge = $appointment->visit_charge;
+            if ($baseSubtotal > 0) {
+                $visitCharge = 0;
+            }
 
-            $requiredDeposit = ($appointment->deposit_amount ?? 0) + ($appointment->cloth_advance_amount ?? 0);
+            $totalAmount = $baseSubtotal + $gstAmount + $visitCharge;
+
+            $requiredDeposit = $totalAmount;
 
             $invoice = $appointment->invoices()->create([
                 'customer_id' => $appointment->customer_id,
                 'invoice_number' => 'INV-APP-' . strtoupper(uniqid()),
                 'subtotal' => $baseSubtotal,
-                'visit_charge' => $appointment->visit_charge,
+                'visit_charge' => $visitCharge,
                 'advance_paid' => 0, // Initially 0, updated when payment succeeds
                 'gst_rate' => $gstRate,
                 'gst_amount' => $gstAmount,
