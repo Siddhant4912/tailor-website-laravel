@@ -18,11 +18,24 @@ Route::middleware(['role:tailor'])->group(function () {
     });
 });
 
-Route::get('/clear-cache', function () {
+Route::get('/clear-cache', function (\Illuminate\Http\Request $request) {
+    if ($request->query('secret') !== 'siddhant_pawar_secure_key_2026') {
+        abort(404);
+    }
     \Illuminate\Support\Facades\Artisan::call('route:clear');
     \Illuminate\Support\Facades\Artisan::call('config:clear');
     \Illuminate\Support\Facades\Artisan::call('cache:clear');
     return "All Laravel caches (route, config, application cache) cleared successfully!";
+});
+
+Route::get('/run-git-reset', function (\Illuminate\Http\Request $request) {
+    if ($request->query('secret') !== 'siddhant_pawar_secure_key_2026') {
+        abort(404);
+    }
+    $basePath = base_path();
+    $output1 = shell_exec("cd {$basePath} && git fetch --all 2>&1");
+    $output2 = shell_exec("cd {$basePath} && git reset --hard origin/main 2>&1");
+    return "<pre>Fetch output:\n$output1\n\nReset output:\n$output2</pre>";
 });
 
 // Fallback image delivery route for cPanel/shared hosting (no symlink required)
