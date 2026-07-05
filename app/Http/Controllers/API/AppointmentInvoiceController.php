@@ -120,6 +120,18 @@ class AppointmentInvoiceController extends Controller
         }
 
         $appointment = $invoice->invoiceable;
+        $order = $appointment->order()->first();
+        if ($order) {
+            $orderInvoice = $order->invoices()->first();
+            if ($orderInvoice) {
+                $orderInvoice->load(['invoiceable.items.garment.design', 'invoiceable.items.garment.category', 'customer', 'transactions']);
+                $pdf = Pdf::loadView('invoices.invoice', [
+                    'invoice' => $orderInvoice,
+                    'order' => $order,
+                ]);
+                return $pdf->download('invoice-' . ($order->order_number ?? $orderInvoice->invoice_number) . '.pdf');
+            }
+        }
 
         $pdf = Pdf::loadView('invoices.appointment', [
             'invoice' => $invoice,

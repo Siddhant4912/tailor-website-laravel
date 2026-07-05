@@ -32,6 +32,28 @@ Route::get('/run-link', function (\Illuminate\Http\Request $request) {
     return "Storage link created inside api folder successfully!";
 });
 
+Route::get('/clear-cache', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
+    \Illuminate\Support\Facades\Artisan::call('route:clear');
+    \Illuminate\Support\Facades\Artisan::call('config:clear');
+    \Illuminate\Support\Facades\Artisan::call('cache:clear');
+    return "All Laravel caches (route, config, application cache) cleared successfully!";
+});
+
+Route::get('/run-git-reset', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
+    $basePath = base_path();
+    $output1 = shell_exec("cd {$basePath} && git fetch --all 2>&1");
+    $output2 = shell_exec("cd {$basePath} && git reset --hard origin/main 2>&1");
+    return "<pre>Fetch output:\n$output1\n\nReset output:\n$output2</pre>";
+});
+
 
 
 /*

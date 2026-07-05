@@ -135,6 +135,17 @@ class InvoiceController extends Controller
             }
         }
 
+        if ($invoice->invoiceable_type === Appointment::class) {
+            $order = $invoice->invoiceable->order()->first();
+            if ($order) {
+                $orderInvoice = $order->invoices()->first();
+                if ($orderInvoice) {
+                    $invoice = $orderInvoice;
+                    $invoice->load(['invoiceable.items.garment.design', 'invoiceable.items.garment.category', 'customer', 'transactions']);
+                }
+            }
+        }
+
         $invoiceable = $invoice->invoiceable;
 
         if ($invoice->invoiceable_type === Order::class) {
