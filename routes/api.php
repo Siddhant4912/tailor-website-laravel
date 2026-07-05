@@ -142,6 +142,7 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::prefix('staff')->middleware('role:delivery_staff')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/profile', [\App\Http\Controllers\API\StaffProfileController::class, 'getProfile']);
         Route::post('/profile/photo', [\App\Http\Controllers\API\StaffProfileController::class, 'updatePhoto']);
         Route::get('/appointments/today', [DeliveryStaffAppointmentController::class, 'today']);
@@ -286,7 +287,11 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Temporary route for cPanel setup (Run migrations & link storage)
-Route::get('/setup-cpanel', function () {
+Route::get('/setup-cpanel', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
     try {
         \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--force' => true, '--seed' => true]);
         \Illuminate\Support\Facades\Artisan::call('config:clear');
@@ -332,7 +337,11 @@ Route::get('/setup-cpanel', function () {
     }
 });
 // Separate route just to link storage (without database migrations)
-Route::get('/link-storage', function () {
+Route::get('/link-storage', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
     try {
         $target = storage_path('app/public');
 
