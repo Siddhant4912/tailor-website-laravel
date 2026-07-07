@@ -25,12 +25,13 @@ class StaffProfileController extends Controller
             ->where('status', 'delivered')
             ->count();
 
-        // Merge profile data so frontend can read profile.profile_photo, profile.gender etc.
+        $userId = $staff->id;
         $staffData = array_merge(
             $staff->toArray(),
             $staff->userProfile ? $staff->userProfile->toArray() : [],
             $staff->deliveryStaffProfile ? $staff->deliveryStaffProfile->toArray() : []
         );
+        $staffData['id'] = $userId;
 
         return response()->json([
             'status' => 'success',
@@ -65,13 +66,13 @@ class StaffProfileController extends Controller
             $userProfile->save();
         }
 
-        // Return merged data
-        $staff->load(['userProfile', 'deliveryStaffProfile']);
+        $userId = $staff->id;
         $staffData = array_merge(
             $staff->toArray(),
             $staff->userProfile ? $staff->userProfile->toArray() : [],
             $staff->deliveryStaffProfile ? $staff->deliveryStaffProfile->toArray() : []
         );
+        $staffData['id'] = $userId;
 
         return response()->json([
             'status' => 'success',

@@ -139,8 +139,15 @@ class OrderController extends Controller
             $validated['remarks'] = $validated['remarks'] ?? 'Cancelled by customer';
         } else {
             if ($user->isDeliveryStaff()) {
-                if ($order->pickup_staff_id != $user->id && $order->delivery_staff_id != $user->id) {
-                    return $this->errorResponse('Unauthorized', 403);
+                $targetStatus = $request->input('status');
+                if (in_array($targetStatus, ['out_for_delivery', 'delivered'])) {
+                    if ($order->delivery_staff_id != $user->id) {
+                        return $this->errorResponse('You are not assigned as the delivery staff for this order.', 403);
+                    }
+                } else {
+                    if ($order->pickup_staff_id != $user->id && $order->delivery_staff_id != $user->id) {
+                        return $this->errorResponse('Unauthorized', 403);
+                    }
                 }
             }
             if ($user->isTailor()) {

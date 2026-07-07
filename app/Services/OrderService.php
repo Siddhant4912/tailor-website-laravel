@@ -64,7 +64,8 @@ class OrderService
 
                 foreach ($data['items'] as $item) {
                     $garment = $garments->get($item['garment_id']);
-                    if (!$garment) continue;
+                    if (!$garment)
+                        continue;
 
                     $price = (float) ($item['price'] ?? $garment->price ?? 0);
                     $quantity = $item['quantity'] ?? 1;
@@ -81,7 +82,8 @@ class OrderService
 
                     // Save measurements specific to this garment
                     foreach ($item['measurements'] ?? [] as $m) {
-                        if (empty($m['field_name'])) continue;
+                        if (empty($m['field_name']))
+                            continue;
                         OrderMeasurement::create([
                             'order_id' => $order->id,
                             'order_item_id' => $orderItem->id, // Add order_item_id just in case
@@ -210,9 +212,9 @@ class OrderService
             $deliveryAddress = $data['delivery_address'] ?? 'No Address Provided';
 
             $status = $data['status'] ?? (
-                (isset($data['payment_method']) && $data['payment_method'] === 'online') 
-                    ? OrderStatusEnum::Draft 
-                    : OrderStatusEnum::PENDING
+                (isset($data['payment_method']) && $data['payment_method'] === 'online')
+                ? OrderStatusEnum::Draft
+                : OrderStatusEnum::PENDING
             );
 
             $order = Order::create([
@@ -233,7 +235,8 @@ class OrderService
 
                 foreach ($data['items'] as $item) {
                     $garment = $garments->get($item['garment_id']);
-                    if (!$garment) continue;
+                    if (!$garment)
+                        continue;
 
                     $price = (float) ($item['price'] ?? $garment->price ?? 0);
                     $quantity = $item['quantity'] ?? 1;

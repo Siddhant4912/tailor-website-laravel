@@ -292,7 +292,7 @@ class DeliveryStaffController extends Controller
             ])
                 ->where(function ($q) use ($staffId) {
                     $q->where('delivery_staff_id', $staffId)
-                      ->orWhere('pickup_staff_id', $staffId);
+                        ->orWhere('pickup_staff_id', $staffId);
                 })
                 ->latest()
                 ->get();
@@ -322,7 +322,7 @@ class DeliveryStaffController extends Controller
             $order = Order::where('id', $id)
                 ->where(function ($q) use ($staffId) {
                     $q->where('delivery_staff_id', $staffId)
-                      ->orWhere('pickup_staff_id', $staffId);
+                        ->orWhere('pickup_staff_id', $staffId);
                 })
                 ->firstOrFail();
 
