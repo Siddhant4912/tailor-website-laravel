@@ -36,7 +36,7 @@ class AuthController extends Controller
                 }
             })->first();
 
-            $isVerified = $this->useEmailOtpForTesting ? !is_null($existingUser->email_verified_at) : !is_null($existingUser->phone_verified_at);
+            $isVerified = $existingUser ? ($this->useEmailOtpForTesting ? !is_null($existingUser->email_verified_at) : !is_null($existingUser->phone_verified_at)) : false;
             if ($existingUser && !$isVerified) {
                 $excludeId = $existingUser->id;
             }
@@ -54,7 +54,7 @@ class AuthController extends Controller
             throw $e;
         }
 
-        $isVerified = $this->useEmailOtpForTesting ? !is_null($existingUser->email_verified_at) : !is_null($existingUser->phone_verified_at);
+        $isVerified = $existingUser ? ($this->useEmailOtpForTesting ? !is_null($existingUser->email_verified_at) : !is_null($existingUser->phone_verified_at)) : false;
         if ($existingUser && !$isVerified) {
             $existingUser->update([
                 'name' => $validated['name'],
@@ -323,26 +323,28 @@ class AuthController extends Controller
             ->orWhere('phone', $identifier)
             ->first();
 
-        if ($user) {
-            if ($user->isDeliveryStaff()) {
-                return $this->errorResponse('This account belongs to delivery staff. Please use the staff login portal.', 403);
-            }
+        if (!$user) {
+            return $this->errorResponse('No account found with this email or phone number.', 404);
+        }
 
-            if ($user->isTailor()) {
-                return $this->errorResponse('This account belongs to tailor. Please use the tailor login portal.', 403);
-            }
+        if ($user->isDeliveryStaff()) {
+            return $this->errorResponse('This account belongs to delivery staff. Please use the staff login portal.', 403);
+        }
 
-            if ($identifier === $user->email) {
-                $user->email_verified_at = now();
-            } else {
-                $user->phone_verified_at = now();
-            }
-            $user->save();
+        if ($user->isTailor()) {
+            return $this->errorResponse('This account belongs to tailor. Please use the tailor login portal.', 403);
+        }
 
-            // Auto-create customer profile if missing
-            if ($user->role === RoleEnum::CUSTOMER) {
-                $user->userProfile()->firstOrCreate([]);
-            }
+        if ($identifier === $user->email) {
+            $user->email_verified_at = now();
+        } else {
+            $user->phone_verified_at = now();
+        }
+        $user->save();
+
+        // Auto-create customer profile if missing
+        if ($user->role === RoleEnum::CUSTOMER) {
+            $user->userProfile()->firstOrCreate([]);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -351,7 +353,7 @@ class AuthController extends Controller
         return $this->successResponse([
             'user' => new UserResource($user),
             'token' => $token,
-        ], 'Email verified successfully! You are now logged in.');
+        ], 'Account verified successfully! You are now logged in.');
     }
 
     /**

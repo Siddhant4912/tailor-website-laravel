@@ -30,7 +30,8 @@ class DeliveryStaffAppointmentController extends Controller
                 'invoices.transactions',
             ])
                 ->where('assigned_staff_id', $staffId)
-                ->orderBy('appointment_time')
+                ->orderBy('appointment_date', 'asc')
+                ->orderBy('appointment_time', 'asc')
                 ->get();
 
             return $this->successResponse(AppointmentResource::collection($appointments), 'Today\'s appointments');

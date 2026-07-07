@@ -32,6 +32,8 @@ class UserProfileService
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
+            'email_verified' => !is_null($user->email_verified_at),
+            'phone_verified' => !is_null($user->phone_verified_at),
             'address_line' => $profile->address ?: ($user->address_line ?: ''),
             'city' => $profile->city ?: ($user->city ?: ''),
             'state' => $profile->state ?: ($user->state ?: ''),

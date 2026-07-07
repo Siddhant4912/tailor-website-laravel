@@ -88,12 +88,12 @@ class UserProfileController extends Controller
         if ($type === 'email') {
             $exists = \App\Models\User::where('email', $value)->where('id', '!=', $userId)->exists();
             if ($exists) {
-                return $this->errorResponse('This email is already in use by another account.', 400);
+                return $this->errorResponse('This email is already registered.', 400);
             }
         } else {
             $exists = \App\Models\User::where('phone', $value)->where('id', '!=', $userId)->exists();
             if ($exists) {
-                return $this->errorResponse('This phone number is already in use by another account.', 400);
+                return $this->errorResponse('This phone number is already registered.', 400);
             }
         }
 
@@ -156,8 +156,10 @@ class UserProfileController extends Controller
         try {
             if ($type === 'email') {
                 $user->email = $value;
+                $user->email_verified_at = now();
             } else {
                 $user->phone = $value;
+                $user->phone_verified_at = now();
             }
             $user->save();
 
