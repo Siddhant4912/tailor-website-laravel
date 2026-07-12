@@ -68,6 +68,7 @@ class UserSeeder extends Seeder
             'role' => RoleEnum::CUSTOMER,
             'status' => 'active',
             'email_verified_at' => now(),
+            'phone_verified_at' => now(),
         ]);
         UserProfile::create([
             'user_id' => $customer->id,
@@ -87,6 +88,8 @@ class UserSeeder extends Seeder
                 'phone' => "555000000$i",
                 'password' => Hash::make('password'),
                 'role' => RoleEnum::CUSTOMER,
+                'email_verified_at' => now(),
+                'phone_verified_at' => now(),
             ]);
             UserProfile::create([
                 'user_id' => $user->id,

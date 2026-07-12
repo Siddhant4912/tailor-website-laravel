@@ -68,7 +68,7 @@ class AppointmentStatusNotification extends Notification
         return $mail
             ->action('View Appointment Details', rtrim(config('app.frontend_url'), '/') . '/dashboard?tab=appointments')
             ->line('Thank you for choosing our bespoke styling services!')
-            ->salutation('Warmly, The Stitch & Style Team');
+            ->salutation('Warmly, The SwiDhaagha Team');
     }
 
     /**

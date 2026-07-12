@@ -215,6 +215,99 @@ class AuthController extends Controller
         ], 'Login successful');
     }
 
+    public function appLogin(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|string',
+            'password' => 'required',
+        ]);
+
+        $loginInput = $request->email;
+
+        $user = User::where(function ($query) use ($loginInput) {
+            $query->where('email', $loginInput)
+                ->orWhere('phone', $loginInput);
+
+            $cleaned = preg_replace('/[^0-9]/', '', $loginInput);
+            if (strlen($cleaned) >= 10) {
+                $query->orWhere('phone', 'like', '%' . substr($cleaned, -10));
+            }
+        })->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['Invalid credentials.'],
+            ]);
+        }
+
+        if ($user->isTailor()) {
+            throw ValidationException::withMessages([
+                'email' => ['This account belongs to tailor. Please use the tailor login portal.'],
+            ]);
+        }
+
+        if ($user->status === 'blocked') {
+            throw ValidationException::withMessages([
+                'email' => ['Your account has been blocked.'],
+            ]);
+        }
+
+        // Check if unverified (only for customer roles, bypass for delivery staff and admin)
+        if ($user->role === RoleEnum::CUSTOMER) {
+            $isVerified = $this->useEmailOtpForTesting ? !is_null($user->email_verified_at) : !is_null($user->phone_verified_at);
+            if (!$isVerified) {
+                $otp = (string) rand(100000, 999999);
+
+                if ($this->useEmailOtpForTesting && !empty($user->email)) {
+                    Otp::where('email', $user->email)->delete();
+                    Otp::create([
+                        'email' => $user->email,
+                        'otp' => $otp,
+                        'expires_at' => now()->addMinutes(15),
+                    ]);
+
+                    try {
+                        $user->notify(new SendOtpNotification($otp));
+                    } catch (\Exception $e) {
+                        \Log::error('OTP login email failed: ' . $e->getMessage());
+                    }
+
+                    return $this->successResponse([
+                        'verification_required' => true,
+                        'email' => $user->email,
+                    ], 'Verification required. A new OTP has been sent to your email.');
+                } else {
+                    Otp::where('email', $user->phone)->delete();
+                    Otp::create([
+                        'email' => $user->phone,
+                        'otp' => $otp,
+                        'expires_at' => now()->addMinutes(15),
+                    ]);
+
+                    try {
+                        $smsService = app(\App\Services\SmsService::class);
+                        $smsService->sendOtp($user->phone, $otp);
+                    } catch (\Exception $e) {
+                        \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                    }
+
+                    return $this->successResponse([
+                        'verification_required' => true,
+                        'email' => $user->phone,
+                    ], 'Verification required. A new OTP has been sent to your phone.');
+                }
+            }
+        }
+
+        // Load profiles based on role
+        $user->load(['userProfile', 'tailorProfile', 'deliveryStaffProfile']);
+
+        return $this->successResponse([
+            'user' => new UserResource($user),
+            'token' => $user->createToken('auth_token')->plainTextToken,
+        ], 'Login successful');
+    }
+
     /**
      * Send OTP / Resend OTP
      */

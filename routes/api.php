@@ -63,6 +63,7 @@ Route::get('/run-git-reset', function (\Illuminate\Http\Request $request) {
 */
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/app/login', [AuthController::class, 'appLogin']);
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);

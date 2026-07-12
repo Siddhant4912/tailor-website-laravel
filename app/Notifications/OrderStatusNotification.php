@@ -109,7 +109,7 @@ class OrderStatusNotification extends Notification
         return $mail
             ->action('View Order Status', rtrim(config('app.frontend_url'), '/') . '/dashboard')
             ->line('Thank you for choosing our bespoke styling services!')
-            ->salutation('Warmly, The Stitch & Style Team');
+            ->salutation('Warmly, The SwiDhaagha Team');
     }
 
     /**

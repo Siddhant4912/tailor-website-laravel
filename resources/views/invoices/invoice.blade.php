@@ -255,7 +255,7 @@
             <img src="{{ public_path('images/logo.png') }}" style="float: left; height: 50px; width: 50px; border-radius: 8px; margin-right: 12px;" />
           @endif
           <div style="float: left; margin-top: 4px;">
-            <div class="brand-title"><span class="brand-accent">{{ config('company.name', 'STITCH & STYLE') }}</span></div>
+            <div class="brand-title"><span class="brand-accent">{{ config('company.name', 'SwiDhaagha') }}</span></div>
             <div class="tagline">{{ config('company.tagline', 'Professional Ladies Tailoring Services') }}</div>
           </div>
           <div style="clear: both;"></div>
@@ -477,7 +477,7 @@
 
   {{-- FOOTER --}}
   <div class="footer">
-    Thank you for choosing Stitch & Style!
+    Thank you for choosing SwiDhaagha!
   </div>
 
 </body>
