@@ -54,6 +54,20 @@ Route::get('/run-git-reset', function (\Illuminate\Http\Request $request) {
     return "<pre>Fetch output:\n$output1\n\nReset output:\n$output2</pre>";
 });
 
+Route::get('/run-migrations', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
+    try {
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $output = \Illuminate\Support\Facades\Artisan::output();
+        return "Migrations run successfully:\n<pre>$output</pre>";
+    } catch (\Exception $e) {
+        return "Migration failed: " . $e->getMessage();
+    }
+});
+
 
 
 /*
