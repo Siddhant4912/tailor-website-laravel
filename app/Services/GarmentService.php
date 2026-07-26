@@ -90,6 +90,10 @@ class GarmentService
                     $path = $url;
                     if (str_contains($url, '/storage/')) {
                         $path = explode('/storage/', $url)[1];
+                    } elseif (str_contains($url, '/api/image/')) {
+                        $path = explode('/api/image/', $url)[1];
+                    } elseif (str_contains($url, '/image/')) {
+                        $path = explode('/image/', $url)[1];
                     }
                     $existingPaths[] = $path;
                 }
