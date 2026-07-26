@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Garment extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'category_id',
         'design_id',
@@ -105,12 +108,12 @@ class Garment extends Model
 
     public function category()
     {
-        return $this->belongsTo(ClothCategory::class, 'category_id');
+        return $this->belongsTo(ClothCategory::class, 'category_id')->withTrashed();
     }
 
     public function design()
     {
-        return $this->belongsTo(Design::class, 'design_id');
+        return $this->belongsTo(Design::class, 'design_id')->withTrashed();
     }
 
     public function measurements()

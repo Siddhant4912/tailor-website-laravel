@@ -34,7 +34,7 @@ class OrderItem extends Model
 
     public function garment()
     {
-        return $this->belongsTo(Garment::class);
+        return $this->belongsTo(Garment::class)->withTrashed();
     }
 
     public function tailor()

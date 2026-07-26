@@ -273,7 +273,7 @@
       <td style="text-align: right; width: 40%;">
         <div class="invoice-title">INVOICE</div>
         <div class="invoice-meta">
-          Invoice No: <span class="meta-value">{{ $invoice->invoice_number }}</span><br>
+          Invoice Number: <span class="meta-value">{{ $invoice->invoice_number }}</span><br>
           Date: <span class="meta-value">{{ \Carbon\Carbon::parse($invoice->generated_at)->format('j F Y') }}</span><br>
           @if($paymentMode)
             Mode: <span class="meta-value" style="text-transform: uppercase;">{{ str_replace('_', ' ', $paymentMode) }}</span><br>
@@ -326,12 +326,12 @@
 
   {{-- ITEMS TABLE --}}
   <div class="section" style="margin-bottom: 15px;">
-    <div class="section-title" style="margin-bottom: 6px;">Items & Stitching Details</div>
+    <div class="section-title" style="margin-bottom: 6px;">Items & Design Details</div>
     <table class="items-table">
       <thead>
         <tr>
           <th style="width: 40px; text-align: center;">#</th>
-          <th style="text-align: left;">Garment</th>
+          <th style="text-align: left;">Design Type / Garment</th>
           <th style="text-align: right; width: 120px;">Unit Price</th>
           <th style="text-align: center; width: 60px;">Qty</th>
           <th style="text-align: right; width: 120px;">Total</th>
@@ -410,7 +410,7 @@
           @endif
           @if($visitCharge > 0)
           <tr>
-            <td>Visit Charge / Fees</td>
+            <td>Visit Charges</td>
             <td class="amount">&#8377;{{ number_format($visitCharge, 2) }}</td>
           </tr>
           @endif

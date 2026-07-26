@@ -14,6 +14,16 @@ class StoreOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'building_name' => 'nullable|string|max:255',
+            'flat_number' => 'nullable|string|max:255',
+            'wing' => 'nullable|string|max:255',
+            'street' => 'nullable|string|max:255',
+            'locality' => 'nullable|string|max:255',
+            'landmark' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:100',
+            'district' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'pincode' => 'nullable|string|max:20',
             'delivery_address' => 'nullable|string',
             'notes' => 'nullable|string',
             

@@ -53,6 +53,24 @@ class AppointmentService
                 $data['status'] = 'draft';
             }
 
+            // Build address_line from structured address fields if provided
+            $addressParts = array_filter([
+                $data['building_name'] ?? null,
+                $data['flat_number'] ?? null,
+                $data['wing'] ?? null,
+                $data['street'] ?? null,
+                $data['locality'] ?? null,
+                $data['landmark'] ?? null,
+                $data['city'] ?? null,
+                $data['district'] ?? null,
+                $data['state'] ?? null,
+                $data['pincode'] ?? null,
+            ], fn($v) => !is_null($v) && trim((string)$v) !== '');
+
+            if (!empty($addressParts)) {
+                $data['address_line'] = implode(', ', $addressParts);
+            }
+
             $appointment = Appointment::create($data);
 
             if (!empty($data['items'])) {

@@ -19,8 +19,15 @@ class StoreAppointmentRequest extends FormRequest
             'appointment_date' => 'required|date|after:today|before_or_equal:' . $maxDate,
             'appointment_time' => 'required|date_format:H:i',
             
-            'address_line' => 'required|string',
+            'building_name' => 'nullable|string|max:255',
+            'flat_number' => 'nullable|string|max:255',
+            'wing' => 'nullable|string|max:255',
+            'street' => 'nullable|string|max:255',
+            'locality' => 'nullable|string|max:255',
+            'landmark' => 'nullable|string|max:255',
+            'address_line' => 'nullable|string',
             'city' => 'nullable|string|max:100',
+            'district' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',
             'pincode' => 'nullable|string|max:20',
             

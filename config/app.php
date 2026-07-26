@@ -56,6 +56,8 @@ return [
 
     'asset_url' => env('ASSET_URL') ?: ((isset($_SERVER['SCRIPT_NAME']) && str_contains($_SERVER['SCRIPT_NAME'], '/api/index.php')) ? 'https://stitchandstyle.tanveerisrar.com' : null),
 
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

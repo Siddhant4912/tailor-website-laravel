@@ -20,11 +20,36 @@ class User extends Authenticatable
         'phone',
         'phone_verified_at',
         'password',
+        'building_name',
+        'flat_number',
+        'wing',
+        'street',
+        'locality',
+        'landmark',
         'address_line',
         'city',
+        'district',
         'state',
         'pincode',
     ];
+
+    public function getFormattedAddressAttribute(): string
+    {
+        $parts = [
+            $this->building_name,
+            $this->flat_number,
+            $this->wing,
+            $this->street,
+            $this->locality,
+            $this->landmark,
+            $this->city,
+            $this->district,
+            $this->state,
+            $this->pincode,
+        ];
+        $filtered = array_filter(array_map('trim', array_map('strval', $parts)), fn($v) => strlen($v) > 0);
+        return !empty($filtered) ? implode(', ', $filtered) : ($this->address_line ?: '');
+    }
 
     protected $hidden = [
         'password',

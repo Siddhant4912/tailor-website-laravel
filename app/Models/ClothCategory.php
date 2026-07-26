@@ -5,10 +5,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Design;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ClothCategory extends Model
 {
-        use HasFactory;
+        use HasFactory, SoftDeletes;
         protected $fillable = [
         'name',
         'gender',
@@ -19,7 +20,7 @@ class ClothCategory extends Model
      // --- Relationships ---
     public function designs()
     {
-        return $this->hasMany(Design::class, 'category_id');
+        return $this->hasMany(Design::class, 'category_id')->withTrashed();
     }
 
 

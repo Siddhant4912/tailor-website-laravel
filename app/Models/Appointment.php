@@ -18,8 +18,15 @@ class Appointment extends Model
         'measurement_type',         // NEW: 'onsite_visit', 'existing_garment'
         'appointment_date',
         'appointment_time',
+        'building_name',
+        'flat_number',
+        'wing',
+        'street',
+        'locality',
+        'landmark',
         'address_line',
         'city',
+        'district',
         'state',
         'pincode',
         'status',
@@ -34,6 +41,26 @@ class Appointment extends Model
         'measurement_taken',
         'notes',
     ];
+
+    public function getFormattedAddressAttribute(): string
+    {
+        $parts = [
+            $this->building_name,
+            $this->flat_number,
+            $this->wing,
+            $this->street,
+            $this->locality,
+            $this->landmark,
+            $this->city,
+            $this->district,
+            $this->state,
+            $this->pincode,
+        ];
+
+        $filtered = array_filter(array_map('trim', array_filter($parts)), fn($v) => $v !== '');
+
+        return !empty($filtered) ? implode(', ', $filtered) : ($this->address_line ?: '');
+    }
 
     protected function casts(): array
     {

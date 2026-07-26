@@ -12,6 +12,20 @@ use Illuminate\Support\Facades\DB;
 
 class InvoiceService
 {
+    public static function generateInvoiceNumber(): string
+    {
+        $nextId = (Invoice::max('id') ?? 0) + 1;
+        do {
+            $candidate = 'SDINV' . str_pad((string) $nextId, 8, '0', STR_PAD_LEFT);
+            $exists = Invoice::where('invoice_number', $candidate)->exists();
+            if ($exists) {
+                $nextId++;
+            }
+        } while ($exists);
+
+        return $candidate;
+    }
+
     public function generateForOrder(Order $order): Invoice
     {
         return DB::transaction(function () use ($order) {
@@ -24,7 +38,7 @@ class InvoiceService
 
             $invoice = $order->invoices()->create([
                 'customer_id' => $order->customer_id,
-                'invoice_number' => 'INV-' . strtoupper(uniqid()),
+                'invoice_number' => self::generateInvoiceNumber(),
                 'subtotal' => $order->subtotal,
                 'visit_charge' => $order->visit_charge,
                 'advance_paid' => $order->advance_paid ?? 0,
@@ -94,7 +108,7 @@ class InvoiceService
 
             $invoice = $appointment->invoices()->create([
                 'customer_id' => $appointment->customer_id,
-                'invoice_number' => 'INV-APP-' . strtoupper(uniqid()),
+                'invoice_number' => self::generateInvoiceNumber(),
                 'subtotal' => $baseSubtotal,
                 'visit_charge' => $visitCharge,
                 'advance_paid' => 0, // Initially 0, updated when payment succeeds

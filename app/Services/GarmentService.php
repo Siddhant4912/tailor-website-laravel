@@ -60,7 +60,7 @@ class GarmentService
                 'secondary_price' => $data['secondary_price'] ?? null,
                 'stitching_time_days' => $data['stitching_time'] ?? 3,
                 'images' => json_encode($imagesPaths),
-                'is_active' => 1,
+                'is_active' => array_key_exists('is_active', $data) ? filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN) : true,
             ]);
 
             if (!empty($data['measurements'])) {
@@ -117,7 +117,7 @@ class GarmentService
                 }
             }
 
-            $garment->update([
+            $updatePayload = [
                 'category_id' => $data['category_id'] ?? $garment->category_id,
                 'design_id' => $data['design_id'] ?? $garment->design_id,
                 'name' => $data['name'] ?? $garment->name,
@@ -126,7 +126,13 @@ class GarmentService
                 'secondary_price' => array_key_exists('secondary_price', $data) ? $data['secondary_price'] : $garment->secondary_price,
                 'stitching_time_days' => $data['stitching_time'] ?? $garment->stitching_time_days,
                 'images' => json_encode($imagesPaths),
-            ]);
+            ];
+
+            if (array_key_exists('is_active', $data)) {
+                $updatePayload['is_active'] = filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN);
+            }
+
+            $garment->update($updatePayload);
 
             if (isset($data['measurements'])) {
                 $garment->measurements()->delete();
@@ -157,18 +163,7 @@ class GarmentService
     // ================= DELETE =================
     public function delete(Garment $garment): bool
     {
-        return DB::transaction(function () use ($garment) {
-            foreach ($garment->rawImages() as $img) {
-                if (Storage::disk('public')->exists($img)) {
-                    Storage::disk('public')->delete($img);
-                }
-                $this->deleteFromPublic($img); // XAMPP fix
-            }
-
-            $garment->measurements()->delete();
-
-            return $garment->delete();
-        });
+        return $garment->delete();
     }
 
     // ================= DELETE SINGLE IMAGE =================

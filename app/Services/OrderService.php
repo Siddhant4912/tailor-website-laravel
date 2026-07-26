@@ -15,6 +15,20 @@ use Illuminate\Support\Facades\Log;
 
 class OrderService
 {
+    public static function generateOrderNumber(): string
+    {
+        $nextId = (Order::max('id') ?? 0) + 1;
+        do {
+            $candidate = 'SDOD' . str_pad((string) $nextId, 7, '0', STR_PAD_LEFT);
+            $exists = Order::where('order_number', $candidate)->exists();
+            if ($exists) {
+                $nextId++;
+            }
+        } while ($exists);
+
+        return $candidate;
+    }
+
     public function __construct(
         protected InvoiceService $invoiceService,
         protected GstService $gstService
@@ -35,21 +49,57 @@ class OrderService
                 throw new \Exception('An order already exists for this appointment.');
             }
 
-            // FIX #1: build full address from split columns when not explicitly provided
-            $deliveryAddress = $data['delivery_address']
-                ?? collect([
-                    $appointment->address_line,
-                    $appointment->city,
-                    $appointment->state,
-                    $appointment->pincode,
-                ])->filter()->join(', ');
+            $buildingName = $data['building_name'] ?? $appointment->building_name;
+            $flatNumber = $data['flat_number'] ?? $appointment->flat_number;
+            $wing = $data['wing'] ?? $appointment->wing;
+            $street = $data['street'] ?? $appointment->street;
+            $locality = $data['locality'] ?? $appointment->locality;
+            $landmark = $data['landmark'] ?? $appointment->landmark;
+            $city = $data['city'] ?? $appointment->city;
+            $district = $data['district'] ?? $appointment->district;
+            $state = $data['state'] ?? $appointment->state;
+            $pincode = $data['pincode'] ?? $appointment->pincode;
+
+            $addressParts = array_filter([
+                $buildingName,
+                $flatNumber,
+                $wing,
+                $street,
+                $locality,
+                $landmark,
+                $city,
+                $district,
+                $state,
+                $pincode,
+            ], fn($v) => !is_null($v) && trim((string)$v) !== '');
+
+            $deliveryAddress = !empty($addressParts)
+                ? implode(', ', $addressParts)
+                : ($data['delivery_address']
+                    ?? $appointment->formatted_address
+                    ?? collect([
+                        $appointment->address_line,
+                        $appointment->city,
+                        $appointment->state,
+                        $appointment->pincode,
+                    ])->filter()->join(', '));
 
             $order = Order::create([
-                'order_number' => 'ORD-' . strtoupper(uniqid()),
+                'order_number' => self::generateOrderNumber(),
                 'appointment_id' => $appointment->id,
                 'customer_id' => $appointment->customer_id,
                 'pickup_staff_id' => $appointment->assigned_staff_id,
                 'visit_charge' => $appointment->visit_charge,
+                'building_name' => $buildingName,
+                'flat_number' => $flatNumber,
+                'wing' => $wing,
+                'street' => $street,
+                'locality' => $locality,
+                'landmark' => $landmark,
+                'city' => $city,
+                'district' => $district,
+                'state' => $state,
+                'pincode' => $pincode,
                 'delivery_address' => $deliveryAddress,
                 'notes' => $data['notes'] ?? null,
                 'status' => OrderStatusEnum::PENDING,
@@ -119,9 +169,7 @@ class OrderService
 
             $appointment->update(['status' => AppointmentStatusEnum::COMPLETED]);
 
-            // Auto-generate invoice
-            $this->invoiceService->generateForOrder($order);
-
+            // Invoice generated upon delivery
             // Dispatch notification
             try {
                 $order->customer->notify(new \App\Notifications\OrderStatusNotification($order, 'pending'));
@@ -140,9 +188,7 @@ class OrderService
 
             // Validate OTP if transitioning to DELIVERED status and an OTP is set in the DB
             if ($status === OrderStatusEnum::DELIVERED && $order->delivery_otp !== null) {
-                $invoice = $order->invoices()->first();
-                $isAlreadyPaid = $invoice && ($invoice->status === \App\Enums\InvoiceStatusEnum::PAID || $invoice->status->value === 'paid');
-                if ($paymentMode !== 'upi' && !$isAlreadyPaid) {
+                if ($paymentMode !== 'upi') {
                     if (trim($otp) !== trim($order->delivery_otp)) {
                         throw new \Exception('Invalid Delivery OTP. Please enter the correct code provided by the customer.');
                     }
@@ -154,8 +200,16 @@ class OrderService
                 $updateData['delivered_at'] = now();
                 $updateData['delivery_otp'] = null; // Clear OTP upon successful delivery
 
-                // Mark associated invoices as paid and transactions as successful
                 $invoice = $order->invoices()->first();
+                if (!$invoice) {
+                    try {
+                        $invoice = $this->invoiceService->generateForOrder($order);
+                    } catch (\Throwable $e) {
+                        Log::error('Deferred invoice generation failed on delivery: ' . $e->getMessage());
+                    }
+                }
+
+                // Mark associated invoices as paid and transactions as successful
                 if ($invoice) {
                     $invoice->update([
                         'status' => \App\Enums\InvoiceStatusEnum::PAID,
@@ -179,7 +233,9 @@ class OrderService
                 if (!empty($order->customer->phone)) {
                     try {
                         $smsService = app(\App\Services\SmsService::class);
-                        $smsService->sendDeliveryOtp($order->customer->phone, $deliveryOtp);
+                        // Temporarily disabled SMS OTP delivery send since the template is pending approval.
+                        // The user will see the OTP in their order details view.
+                        // $smsService->sendDeliveryOtp($order->customer->phone, $deliveryOtp);
                     } catch (\Exception $smsEx) {
                         \Illuminate\Support\Facades\Log::error('Failed to send delivery OTP SMS: ' . $smsEx->getMessage());
                     }
@@ -209,7 +265,20 @@ class OrderService
     public function createDirectOrder(array $data, int $customerId, bool $isSimulation = false): Order
     {
         return DB::transaction(function () use ($data, $customerId, $isSimulation) {
-            $deliveryAddress = $data['delivery_address'] ?? 'No Address Provided';
+            $addressParts = array_filter([
+                $data['building_name'] ?? null,
+                $data['flat_number'] ?? null,
+                $data['wing'] ?? null,
+                $data['street'] ?? null,
+                $data['locality'] ?? null,
+                $data['landmark'] ?? null,
+                $data['city'] ?? null,
+                $data['district'] ?? null,
+                $data['state'] ?? null,
+                $data['pincode'] ?? null,
+            ], fn($v) => !is_null($v) && trim((string)$v) !== '');
+
+            $deliveryAddress = !empty($addressParts) ? implode(', ', $addressParts) : ($data['delivery_address'] ?? 'No Address Provided');
 
             $status = $data['status'] ?? (
                 (isset($data['payment_method']) && $data['payment_method'] === 'online')
@@ -218,9 +287,19 @@ class OrderService
             );
 
             $order = Order::create([
-                'order_number' => 'ORD-' . strtoupper(uniqid()),
+                'order_number' => self::generateOrderNumber(),
                 'customer_id' => $customerId,
                 'visit_charge' => 0, // No visit charge for direct order
+                'building_name' => $data['building_name'] ?? null,
+                'flat_number' => $data['flat_number'] ?? null,
+                'wing' => $data['wing'] ?? null,
+                'street' => $data['street'] ?? null,
+                'locality' => $data['locality'] ?? null,
+                'landmark' => $data['landmark'] ?? null,
+                'city' => $data['city'] ?? null,
+                'district' => $data['district'] ?? null,
+                'state' => $data['state'] ?? null,
+                'pincode' => $data['pincode'] ?? null,
                 'delivery_address' => $deliveryAddress,
                 'notes' => $data['notes'] ?? null,
                 'status' => $status,
@@ -282,9 +361,7 @@ class OrderService
                 'total_price' => $total,
             ]);
 
-            // Auto-generate invoice
-            $this->invoiceService->generateForOrder($order);
-
+            // Invoice generated upon delivery
             // Dispatch notification only if not draft and not simulation
             $statusStr = is_object($order->status) ? $order->status->value : (string) $order->status;
             if ($statusStr !== 'draft' && !$isSimulation) {

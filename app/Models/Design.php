@@ -8,9 +8,11 @@ use App\Models\Garment;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
 class Design extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'category_id',
@@ -49,12 +51,12 @@ class Design extends Model
 
     public function category()
     {
-        return $this->belongsTo(ClothCategory::class, 'category_id');
+        return $this->belongsTo(ClothCategory::class, 'category_id')->withTrashed();
     }
 
     public function garments()
     {
-        return $this->hasMany(Garment::class, 'design_id');
+        return $this->hasMany(Garment::class, 'design_id')->withTrashed();
     }
     // --- Scopes ---
     public function scopeActive($query)

@@ -21,6 +21,7 @@ class GarmentRequest extends FormRequest
             'price'          => 'required|numeric|min:0',
             'secondary_price'=> 'nullable|numeric|min:0',
             'stitching_time' => 'nullable|integer|min:1',
+            'is_active'      => 'nullable|boolean',
 
 
             'images'   => 'nullable|array',

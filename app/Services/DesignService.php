@@ -49,6 +49,7 @@ class DesignService
             'image_url' => $data['image_url'] ?? null,
             'additional_price' => $data['additional_price'] ?? 0.00,
             'secondary_price' => $data['secondary_price'] ?? 0.00,
+            'is_active' => array_key_exists('is_active', $data) ? filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN) : true,
         ]);
     }
 
@@ -65,6 +66,10 @@ class DesignService
             $data['image'] = $file->store('designs', 'public');
         }
 
+        if (array_key_exists('is_active', $data)) {
+            $data['is_active'] = filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN);
+        }
+
         $design->update($data);
 
         return $design->fresh();
@@ -73,11 +78,6 @@ class DesignService
     // ✅ DELETE
     public function delete(Design $design)
     {
-        // 🔥 delete image also
-        if ($design->image && Storage::disk('public')->exists($design->image)) {
-            Storage::disk('public')->delete($design->image);
-        }
-
         return $design->delete();
     }
 }

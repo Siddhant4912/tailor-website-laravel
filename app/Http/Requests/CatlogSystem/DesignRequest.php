@@ -23,6 +23,7 @@ class DesignRequest extends FormRequest
             'description' => 'nullable|string',
             'additional_price' => 'nullable|numeric|min:0',
             'secondary_price' => 'nullable|numeric|min:0',
+            'is_active' => 'nullable|boolean',
         ];
     }
 
