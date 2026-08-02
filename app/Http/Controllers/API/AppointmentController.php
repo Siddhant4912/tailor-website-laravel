@@ -120,20 +120,20 @@ class AppointmentController extends Controller
             unset($validated['user_id']);
 
             // Limit check: Maximum of 3 active appointments created by this user in the last 24 hours (skip for Admin)
-            // if (!$this->isAdmin($request)) {
-            //     $existingCount = Appointment::where('customer_id', $validated['customer_id'])
-            //         ->where('created_at', '>=', now()->subHours(24))
-            //         ->where('status', '!=', \App\Enums\AppointmentStatusEnum::CANCELLED)
-            //         ->count();
+            if (!$this->isAdmin($request)) {
+                $existingCount = Appointment::where('customer_id', $validated['customer_id'])
+                    ->where('created_at', '>=', now()->subHours(24))
+                    ->where('status', '!=', \App\Enums\AppointmentStatusEnum::CANCELLED)
+                    ->count();
 
-            //     if ($existingCount >= 3) {
-            //         return $this->errorResponse('You cannot book more than 3 appointments within a 24-hour window.', 422);
-            //     }
+                if ($existingCount >= 3) {
+                    return $this->errorResponse('You cannot book more than 3 appointments within a 24-hour window.', 422);
+                }
 
-            //     if (is_null($request->user()->email_verified_at)) {
-            //         return $this->errorResponse('Please verify your phone number before booking an appointment.', 403);
-            //     }
-            // }
+                if (is_null($request->user()->phone_verified_at)) {
+                    return $this->errorResponse('Please verify your phone number before booking an appointment.', 403);
+                }
+            }
 
 
             $data = $this->service->create($validated);

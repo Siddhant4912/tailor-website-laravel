@@ -106,11 +106,15 @@ class AuthController extends Controller
                 'expires_at' => now()->addMinutes(15),
             ]);
 
-            try {
-                $smsService = app(\App\Services\SmsService::class);
-                $smsService->sendOtp($user->phone, $otp);
-            } catch (\Exception $e) {
-                \Log::error('OTP SMS failed to send during registration: ' . $e->getMessage());
+            // Added by Siddhant: Bypass SMS dispatching for Google Play Store app review verification
+            $isTestPhone = $user->phone === '9999999999';
+            if (!$isTestPhone) {
+                try {
+                    $smsService = app(\App\Services\SmsService::class);
+                    $smsService->sendOtp($user->phone, $otp);
+                } catch (\Exception $e) {
+                    \Log::error('OTP SMS failed to send during registration: ' . $e->getMessage());
+                }
             }
 
             return $this->successResponse([
@@ -192,11 +196,15 @@ class AuthController extends Controller
                     'expires_at' => now()->addMinutes(15),
                 ]);
 
-                try {
-                    $smsService = app(\App\Services\SmsService::class);
-                    $smsService->sendOtp($user->phone, $otp);
-                } catch (\Exception $e) {
-                    \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                // Added by Siddhant: Bypass SMS dispatching for Google Play Store app review verification
+                $isTestPhone = $user->phone === '9999999999';
+                if (!$isTestPhone) {
+                    try {
+                        $smsService = app(\App\Services\SmsService::class);
+                        $smsService->sendOtp($user->phone, $otp);
+                    } catch (\Exception $e) {
+                        \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                    }
                 }
 
                 return $this->successResponse([
@@ -284,11 +292,15 @@ class AuthController extends Controller
                         'expires_at' => now()->addMinutes(15),
                     ]);
 
-                    try {
-                        $smsService = app(\App\Services\SmsService::class);
-                        $smsService->sendOtp($user->phone, $otp);
-                    } catch (\Exception $e) {
-                        \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                    // Added by Siddhant: Bypass SMS dispatching for Google Play Store app review verification
+                    $isTestPhone = $user->phone === '9999999999';
+                    if (!$isTestPhone) {
+                        try {
+                            $smsService = app(\App\Services\SmsService::class);
+                            $smsService->sendOtp($user->phone, $otp);
+                        } catch (\Exception $e) {
+                            \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                        }
                     }
 
                     return $this->successResponse([
@@ -366,12 +378,16 @@ class AuthController extends Controller
             ]);
 
             // COMMENT THIS BLOCK TO DISABLE PHONE SMS OTP:
-            try {
-                $smsService = app(\App\Services\SmsService::class);
-                $smsService->sendOtp($user->phone, $otp);
-            } catch (\Exception $e) {
-                \Log::error('Resend OTP SMS failed: ' . $e->getMessage());
-                return $this->errorResponse('Failed to send SMS. Please try again.', 500, $e->getMessage());
+            // Added by Siddhant: Bypass SMS dispatching for Google Play Store app review verification
+            $isTestPhone = $user->phone === '9999999999';
+            if (!$isTestPhone) {
+                try {
+                    $smsService = app(\App\Services\SmsService::class);
+                    $smsService->sendOtp($user->phone, $otp);
+                } catch (\Exception $e) {
+                    \Log::error('Resend OTP SMS failed: ' . $e->getMessage());
+                    return $this->errorResponse('Failed to send SMS. Please try again.', 500, $e->getMessage());
+                }
             }
 
             // UNCOMMENT FOR TESTING EMAIL OTP:
@@ -400,17 +416,24 @@ class AuthController extends Controller
         ]);
 
         $identifier = $request->email;
-        $otpRecord = Otp::where('email', $identifier)
-            ->where('otp', $request->otp)
-            ->latest()
-            ->first();
+        // Added by Siddhant: Accept universal OTP '123456' for Google Play Store review team validation
+        $isTestBypass = $identifier === '9999999999' && $request->otp === '123456';
+        
+        if ($isTestBypass) {
+            $otpRecord = null;
+        } else {
+            $otpRecord = Otp::where('email', $identifier)
+                ->where('otp', $request->otp)
+                ->latest()
+                ->first();
 
-        if (!$otpRecord || $otpRecord->isExpired()) {
-            return $this->errorResponse('Invalid or expired OTP code.', 400);
+            if (!$otpRecord || $otpRecord->isExpired()) {
+                return $this->errorResponse('Invalid or expired OTP code.', 400);
+            }
+
+            // Consume OTP
+            $otpRecord->delete();
         }
-
-        // Consume OTP
-        $otpRecord->delete();
 
         $user = User::where('email', $identifier)
             ->orWhere('phone', $identifier)
@@ -461,13 +484,20 @@ class AuthController extends Controller
         ]);
 
         $identifier = $request->email;
-        $otpRecord = Otp::where('email', $identifier)
-            ->where('otp', $request->otp)
-            ->latest()
-            ->first();
+        // Added by Siddhant: Accept universal OTP '123456' for Google Play Store review team validation
+        $isTestBypass = $identifier === '9999999999' && $request->otp === '123456';
+        
+        if ($isTestBypass) {
+            $otpRecord = null;
+        } else {
+            $otpRecord = Otp::where('email', $identifier)
+                ->where('otp', $request->otp)
+                ->latest()
+                ->first();
 
-        if (!$otpRecord || $otpRecord->isExpired()) {
-            return $this->errorResponse('Invalid or expired OTP code.', 400);
+            if (!$otpRecord || $otpRecord->isExpired()) {
+                return $this->errorResponse('Invalid or expired OTP code.', 400);
+            }
         }
 
         $user = User::where('email', $identifier)
@@ -479,7 +509,9 @@ class AuthController extends Controller
         }
 
         // Consume OTP
-        $otpRecord->delete();
+        if ($otpRecord) {
+            $otpRecord->delete();
+        }
 
         // Update password
         $user->password = Hash::make($request->password);
