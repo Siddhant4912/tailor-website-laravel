@@ -31,20 +31,21 @@ class SmsService
         }
 
         // 2. Prepare text message by matching DLT approved template exactly
-        $templateText = $this->config['template_text'] ?? 'Dear Customer your one time password(OTP) for login is ##var##. Please do not share this with anyone. Shree Appaji enterprises';
-        $messageText = str_replace(['##var##', '{#var#}', '{$otp}'], $otp, $templateText);
+        $templateId = $this->config['template_id'] ?? '';
+        $templateText = $this->config['template_text'] ?? '';
+        $messageText = str_replace('##alp##', $otp, $templateText);
 
         // 3. Build API parameters
         $params = [
-            'senderid' => $this->config['sender_id'],
-            'channel' => $this->config['channel'],
+            'senderid' => $this->config['sender_id'] ?? '',
+            'channel' => $this->config['channel'] ?? 'Trans',
             'DCS' => '0',
             'flashsms' => '0',
             'number' => $formattedPhone,
             'text' => $messageText,
-            'route' => $this->config['route'],
-            'PEId' => $this->config['peid'],
-            'DLTTemplateId' => $this->config['template_id'],
+            'route' => $this->config['route'] ?? '5',
+            'PEId' => $this->config['peid'] ?? '',
+            'DLTTemplateId' => $templateId,
         ];
 
         if (!empty($this->config['user']) && !empty($this->config['password'])) {
@@ -56,14 +57,9 @@ class SmsService
 
         // 4. Send request
         try {
-            Log::info('GOOADVERT PARAMS', [
-                'APIKey' => !empty($this->config['api_key']) ? (substr($this->config['api_key'], 0, 5) . '***') : null,
-                'user' => !empty($this->config['user']) ? $this->config['user'] : null,
-                'senderid' => $this->config['sender_id'],
-                'channel' => $this->config['channel'],
-                'route' => $this->config['route'],
-                'PEId' => $this->config['peid'],
-                'DLTTemplateId' => $this->config['template_id'],
+            Log::info('GOOADVERT OTP PARAMS', [
+                'senderid' => $params['senderid'],
+                'DLTTemplateId' => $templateId,
                 'number' => $formattedPhone,
                 'text' => $messageText,
             ]);
@@ -77,7 +73,6 @@ class SmsService
             ]);
 
             if ($response->successful()) {
-                // Return true only if ErrorCode is 000 (Done)
                 return str_contains($response->body(), '"ErrorCode":"000"');
             }
 
@@ -92,10 +87,11 @@ class SmsService
      * Send Delivery OTP SMS to the given phone number.
      *
      * @param string $phone
+     * @param string $orderNumber
      * @param string $otp
      * @return bool
      */
-    public function sendDeliveryOtp($phone, $otp)
+    public function sendDeliveryOtp($phone, $orderNumber, $otp)
     {
         // 1. Sanitize and format the phone number
         $formattedPhone = $this->formatPhoneNumber($phone);
@@ -105,26 +101,21 @@ class SmsService
         }
 
         // 2. Determine template ID and text.
-        // Falls back to the approved login template if no delivery template is configured.
-        $templateId = env('GOOADVERT_DELIVERY_TEMPLATE_ID', $this->config['template_id']);
+        $templateId = $this->config['delivery_template_id'] ?? '';
+        $templateText = $this->config['delivery_template_text'] ?? '';
         
-        if ($templateId === $this->config['template_id']) {
-            $messageText = "Dear Customer your one time password(OTP) for login is {$otp}. Please do not share this with anyone. Shree Appaji enterprises";
-        } else {
-            $deliveryTemplate = env('GOOADVERT_DELIVERY_TEMPLATE_TEXT', "Dear Customer, your delivery verification OTP for order is {$otp}. Shree Appaji enterprises");
-            $messageText = str_replace(['##var##', '{#var#}', '{$otp}'], $otp, $deliveryTemplate);
-        }
+        $messageText = str_replace(['##alp##', '##num##'], [$orderNumber, $otp], $templateText);
 
         // 3. Build API parameters
         $params = [
-            'senderid' => $this->config['sender_id'],
-            'channel' => $this->config['channel'],
+            'senderid' => $this->config['sender_id'] ?? '',
+            'channel' => $this->config['channel'] ?? 'Trans',
             'DCS' => '0',
             'flashsms' => '0',
             'number' => $formattedPhone,
             'text' => $messageText,
-            'route' => $this->config['route'],
-            'PEId' => $this->config['peid'],
+            'route' => $this->config['route'] ?? '5',
+            'PEId' => $this->config['peid'] ?? '',
             'DLTTemplateId' => $templateId,
         ];
 
@@ -137,13 +128,8 @@ class SmsService
 
         // 4. Send request
         try {
-            Log::info('GOOADVERT DELIVERY PARAMS', [
-                'APIKey' => !empty($this->config['api_key']) ? (substr($this->config['api_key'], 0, 5) . '***') : null,
-                'user' => !empty($this->config['user']) ? $this->config['user'] : null,
-                'senderid' => $this->config['sender_id'],
-                'channel' => $this->config['channel'],
-                'route' => $this->config['route'],
-                'PEId' => $this->config['peid'],
+            Log::info('GOOADVERT DELIVERY OTP PARAMS', [
+                'senderid' => $params['senderid'],
                 'DLTTemplateId' => $templateId,
                 'number' => $formattedPhone,
                 'text' => $messageText,
@@ -152,7 +138,7 @@ class SmsService
             $url = 'http://sms.gooadvert.com/api/mt/SendSMS';
             $response = Http::get($url, $params);
 
-            Log::info('GOOADVERT DELIVERY RESPONSE', [
+            Log::info('GOOADVERT DELIVERY OTP RESPONSE', [
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
@@ -163,7 +149,76 @@ class SmsService
 
             return false;
         } catch (\Exception $e) {
-            Log::error("Error calling Goo Advert SMS API for delivery: " . $e->getMessage());
+            Log::error("Error calling Goo Advert SMS API for delivery OTP: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send Out for Delivery SMS to the given phone number.
+     *
+     * @param string $phone
+     * @param string $orderNumber
+     * @return bool
+     */
+    public function sendOutForDelivery($phone, $orderNumber)
+    {
+        // 1. Sanitize and format the phone number
+        $formattedPhone = $this->formatPhoneNumber($phone);
+        if (!$formattedPhone) {
+            Log::error("Out for Delivery SMS send failed: Invalid phone number '{$phone}'");
+            return false;
+        }
+
+        // 2. Determine template ID and text.
+        $templateId = $this->config['out_for_delivery_template_id'] ?? '';
+        $templateText = $this->config['out_for_delivery_template_text'] ?? '';
+        $messageText = str_replace('##alp##', $orderNumber, $templateText);
+
+        // 3. Build API parameters
+        $params = [
+            'senderid' => $this->config['sender_id'] ?? '',
+            'channel' => $this->config['channel'] ?? 'Trans',
+            'DCS' => '0',
+            'flashsms' => '0',
+            'number' => $formattedPhone,
+            'text' => $messageText,
+            'route' => $this->config['route'] ?? '5',
+            'PEId' => $this->config['peid'] ?? '',
+            'DLTTemplateId' => $templateId,
+        ];
+
+        if (!empty($this->config['user']) && !empty($this->config['password'])) {
+            $params['user'] = $this->config['user'];
+            $params['password'] = $this->config['password'];
+        } elseif (!empty($this->config['api_key'])) {
+            $params['APIKey'] = $this->config['api_key'];
+        }
+
+        // 4. Send request
+        try {
+            Log::info('GOOADVERT OUT FOR DELIVERY PARAMS', [
+                'senderid' => $params['senderid'],
+                'DLTTemplateId' => $templateId,
+                'number' => $formattedPhone,
+                'text' => $messageText,
+            ]);
+
+            $url = 'http://sms.gooadvert.com/api/mt/SendSMS';
+            $response = Http::get($url, $params);
+
+            Log::info('GOOADVERT OUT FOR DELIVERY RESPONSE', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            if ($response->successful()) {
+                return str_contains($response->body(), '"ErrorCode":"000"');
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error("Error calling Goo Advert SMS API for out for delivery: " . $e->getMessage());
             return false;
         }
     }

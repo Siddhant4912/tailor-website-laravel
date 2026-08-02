@@ -233,9 +233,8 @@ class OrderService
                 if (!empty($order->customer->phone)) {
                     try {
                         $smsService = app(\App\Services\SmsService::class);
-                        // Temporarily disabled SMS OTP delivery send since the template is pending approval.
-                        // The user will see the OTP in their order details view.
-                        // $smsService->sendDeliveryOtp($order->customer->phone, $deliveryOtp);
+                        $smsService->sendOutForDelivery($order->customer->phone, $order->order_number);
+                        $smsService->sendDeliveryOtp($order->customer->phone, $order->order_number, $deliveryOtp);
                     } catch (\Exception $smsEx) {
                         \Illuminate\Support\Facades\Log::error('Failed to send delivery OTP SMS: ' . $smsEx->getMessage());
                     }

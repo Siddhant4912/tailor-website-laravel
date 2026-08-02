@@ -50,6 +50,10 @@ return [
         'route' => env('GOOADVERT_ROUTE'),
         'channel' => env('GOOADVERT_CHANNEL'),
         'template_text' => env('GOOADVERT_TEMPLATE_TEXT'),
+        'delivery_template_id' => env('GOOADVERT_DELIVERY_TEMPLATE_ID'),
+        'delivery_template_text' => env('GOOADVERT_DELIVERY_TEMPLATE_TEXT'),
+        'out_for_delivery_template_id' => env('GOOADVERT_OUT_FOR_DELIVERY_TEMPLATE_ID'),
+        'out_for_delivery_template_text' => env('GOOADVERT_OUT_FOR_DELIVERY_TEMPLATE_TEXT'),
     ],
 
 
