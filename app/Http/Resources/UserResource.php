@@ -20,9 +20,9 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'role' => $this->role,
             'status' => $this->status,
-            'profile' => $this->whenLoaded('userProfile', fn() => new UserProfileResource($this->userProfile)),
-            'tailor_profile' => $this->whenLoaded('tailorProfile', fn() => new TailorProfileResource($this->tailorProfile)),
-            'delivery_profile' => $this->whenLoaded('deliveryStaffProfile', fn() => new DeliveryStaffProfileResource($this->deliveryStaffProfile)),
+            'profile' => $this->whenLoaded('userProfile', fn() => $this->userProfile ? new UserProfileResource($this->userProfile) : null),
+            'tailor_profile' => $this->whenLoaded('tailorProfile', fn() => $this->tailorProfile ? new TailorProfileResource($this->tailorProfile) : null),
+            'delivery_profile' => $this->whenLoaded('deliveryStaffProfile', fn() => $this->deliveryStaffProfile ? new DeliveryStaffProfileResource($this->deliveryStaffProfile) : null),
             'orders_count' => \App\Models\Order::where('customer_id', $this->id)->count(),
             'appointments_count' => \App\Models\Appointment::where('customer_id', $this->id)->count(),
             'tailor_metrics' => $this->when($this->role === \App\Enums\RoleEnum::TAILOR, function() {
