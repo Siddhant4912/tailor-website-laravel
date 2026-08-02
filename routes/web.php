@@ -6,6 +6,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/privacy-policy', function () {
+    return view('privacy-policy');
+});
+
 Route::middleware(['role:admin'])->group(function () {
     Route::get('/admin/dashboard', function () {
         return "Admin Dashboard";
