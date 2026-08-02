@@ -54,6 +54,10 @@ Route::get('/run-git-reset', function (\Illuminate\Http\Request $request) {
     return "<pre>Fetch output:\n$output1\n\nReset output:\n$output2</pre>";
 });
 
+Route::get('/privacy-policy', function () {
+    return view('privacy-policy');
+});
+
 Route::get('/run-migrations', function (\Illuminate\Http\Request $request) {
     $secret = env('GIT_RESET_SECRET');
     if (!$secret || $request->query('secret') !== $secret) {
