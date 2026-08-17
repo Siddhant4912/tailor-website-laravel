@@ -11,9 +11,7 @@ return new class extends Migration
      public function up(): void
      {
          DB::table('designs')->update([
-             'type' => 'garment',
-             'additional_price' => 0,
-             'secondary_price' => 0
+             'type' => 'garment'
          ]);
      }
 
