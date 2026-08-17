@@ -20,7 +20,7 @@ class ClothCategory extends Model
      // --- Relationships ---
     public function designs()
     {
-        return $this->hasMany(Design::class, 'category_id')->withTrashed();
+        return $this->hasMany(Design::class, 'category_id');
     }
 
 

@@ -194,18 +194,6 @@ class AppointmentController extends Controller
                         if ($appointment->payment_status === 'paid') {
                             return $this->errorResponse('Paid appointments cannot be cancelled online. Please contact support.', 400);
                         }
-
-                        // Enforce 48-hour limit from booking creation
-                        $placedAt = $appointment->created_at;
-                        if (now()->diffInHours($placedAt) >= 48) {
-                            return $this->errorResponse('Appointments can only be cancelled within 48 hours of booking.', 400);
-                        }
-
-                        // Enforce 24-hour limit before scheduled visit time
-                        $scheduledAt = \Carbon\Carbon::parse($appointment->appointment_date->format('Y-m-d') . ' ' . ($appointment->appointment_time ?? '00:00'));
-                        if (now()->diffInHours($scheduledAt, false) < 24) {
-                            return $this->errorResponse('Appointments can only be cancelled at least 24 hours before the scheduled visit time.', 400);
-                        }
                     } else {
                         return $this->errorResponse('Unauthorized status update.', 403);
                     }

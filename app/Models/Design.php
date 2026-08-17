@@ -23,6 +23,7 @@ class Design extends Model
         'additional_price',
         'secondary_price',
         'is_active',
+        'type',
     ];
 
     protected $appends = [
@@ -56,7 +57,7 @@ class Design extends Model
 
     public function garments()
     {
-        return $this->hasMany(Garment::class, 'design_id')->withTrashed();
+        return $this->hasMany(Garment::class, 'design_id');
     }
     // --- Scopes ---
     public function scopeActive($query)

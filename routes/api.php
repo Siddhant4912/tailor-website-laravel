@@ -85,6 +85,7 @@ Route::post('/app/login', [AuthController::class, 'appLogin']);
 Route::post('/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::get('/login-mode', [AuthController::class, 'loginMode']);
 Route::post('/delivery-staff/login', [DeliveryStaffController::class, 'login']);
 
 Route::get('/catalog', [CatalogSystemController::class, 'index']);

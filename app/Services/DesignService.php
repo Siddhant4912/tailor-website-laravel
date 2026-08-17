@@ -29,6 +29,10 @@ class DesignService
             });
         }
 
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
         return $query->latest()->get();
     }
 
@@ -50,6 +54,7 @@ class DesignService
             'additional_price' => $data['additional_price'] ?? 0.00,
             'secondary_price' => $data['secondary_price'] ?? 0.00,
             'is_active' => array_key_exists('is_active', $data) ? filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN) : true,
+            'type' => $data['type'] ?? 'stitching',
         ]);
     }
 

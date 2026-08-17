@@ -24,6 +24,7 @@ class DesignRequest extends FormRequest
             'additional_price' => 'nullable|numeric|min:0',
             'secondary_price' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
+            'type' => 'nullable|string|in:garment,stitching',
         ];
     }
 

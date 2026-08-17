@@ -128,7 +128,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => 'required|string',
-            'password' => 'required',
+            'password' => 'nullable|string',
         ]);
 
         $loginInput = $request->email;
@@ -143,10 +143,22 @@ class AuthController extends Controller
             }
         })->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user) {
             throw ValidationException::withMessages([
-                'email' => ['Invalid credentials.'],
+                'email' => ['No account found with this email or phone number.'],
             ]);
+        }
+
+        $loginByOtp = config('auth.login_by_otp', true);
+        $isAdmin = $user->isAdmin();
+        $isOtpMode = $loginByOtp && !$isAdmin;
+
+        if (!$isOtpMode) {
+            if (!$request->filled('password') || !Hash::check($request->password, $user->password)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Invalid credentials.'],
+                ]);
+            }
         }
 
         if ($user->isDeliveryStaff()) {
@@ -167,12 +179,59 @@ class AuthController extends Controller
             ]);
         }
 
-        // Check if unverified
+        if ($isOtpMode) {
+            $otp = (string) rand(100000, 999999);
+
+            if ($this->useEmailOtpForTesting && !empty($user->email)) {
+                Otp::where('email', $user->email)->delete();
+                Otp::create([
+                    'email' => $user->email,
+                    'otp' => $otp,
+                    'expires_at' => now()->addMinutes(15),
+                ]);
+
+                try {
+                    $user->notify(new SendOtpNotification($otp));
+                } catch (\Exception $e) {
+                    \Log::error('OTP login email failed: ' . $e->getMessage());
+                }
+
+                return $this->successResponse([
+                    'verification_required' => true,
+                    'email' => $user->email,
+                ], 'A verification OTP has been sent to your email.');
+            } else {
+                Otp::where('email', $user->phone)->delete();
+                Otp::create([
+                    'email' => $user->phone,
+                    'otp' => $otp,
+                    'expires_at' => now()->addMinutes(15),
+                ]);
+
+                $isTestPhone = $user->phone === '9999999999';
+                if (!$isTestPhone) {
+                    try {
+                        $smsService = app(\App\Services\SmsService::class);
+                        $smsService->sendOtp($user->phone, $otp);
+                    } catch (\Exception $e) {
+                        \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                    }
+                }
+
+                return $this->successResponse([
+                    'verification_required' => true,
+                    'email' => $user->phone,
+                ], 'A verification OTP has been sent to your phone.');
+            }
+        }
+
+        // Check if unverified (for traditional password flow)
         $isVerified = $this->useEmailOtpForTesting ? !is_null($user->email_verified_at) : !is_null($user->phone_verified_at);
         if (!$isVerified && $user->role !== RoleEnum::ADMIN) {
             $otp = (string) rand(100000, 999999);
 
             if ($this->useEmailOtpForTesting && !empty($user->email)) {
+                Otp::where('email', $user->email)->delete();
                 Otp::create([
                     'email' => $user->email,
                     'otp' => $otp,
@@ -190,6 +249,7 @@ class AuthController extends Controller
                     'email' => $user->email,
                 ], 'Verification required. A new OTP has been sent to your email.');
             } else {
+                Otp::where('email', $user->phone)->delete();
                 Otp::create([
                     'email' => $user->phone,
                     'otp' => $otp,
@@ -217,6 +277,11 @@ class AuthController extends Controller
         // Load profiles based on role
         $user->load(['userProfile', 'tailorProfile', 'deliveryStaffProfile']);
 
+        $user->last_login_at = now();
+        $user->last_login_ip = $request->ip();
+        $user->login_device = $request->userAgent();
+        $user->save();
+
         return $this->successResponse([
             'user' => new UserResource($user),
             'token' => $user->createToken('auth_token')->plainTextToken,
@@ -227,7 +292,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => 'required|string',
-            'password' => 'required',
+            'password' => 'nullable|string',
         ]);
 
         $loginInput = $request->email;
@@ -242,10 +307,22 @@ class AuthController extends Controller
             }
         })->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user) {
             throw ValidationException::withMessages([
-                'email' => ['Invalid credentials.'],
+                'email' => ['No account found with this email or phone number.'],
             ]);
+        }
+
+        $loginByOtp = config('auth.login_by_otp', true);
+        $isAdmin = $user->isAdmin();
+        $isOtpMode = $loginByOtp && !$isAdmin;
+
+        if (!$isOtpMode) {
+            if (!$request->filled('password') || !Hash::check($request->password, $user->password)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Invalid credentials.'],
+                ]);
+            }
         }
 
         if ($user->isTailor()) {
@@ -258,6 +335,52 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => ['Your account has been blocked.'],
             ]);
+        }
+
+        if ($isOtpMode) {
+            $otp = (string) rand(100000, 999999);
+
+            if ($this->useEmailOtpForTesting && !empty($user->email)) {
+                Otp::where('email', $user->email)->delete();
+                Otp::create([
+                    'email' => $user->email,
+                    'otp' => $otp,
+                    'expires_at' => now()->addMinutes(15),
+                ]);
+
+                try {
+                    $user->notify(new SendOtpNotification($otp));
+                } catch (\Exception $e) {
+                    \Log::error('OTP login email failed: ' . $e->getMessage());
+                }
+
+                return $this->successResponse([
+                    'verification_required' => true,
+                    'email' => $user->email,
+                ], 'A verification OTP has been sent to your email.');
+            } else {
+                Otp::where('email', $user->phone)->delete();
+                Otp::create([
+                    'email' => $user->phone,
+                    'otp' => $otp,
+                    'expires_at' => now()->addMinutes(15),
+                ]);
+
+                $isTestPhone = $user->phone === '9999999999';
+                if (!$isTestPhone) {
+                    try {
+                        $smsService = app(\App\Services\SmsService::class);
+                        $smsService->sendOtp($user->phone, $otp);
+                    } catch (\Exception $e) {
+                        \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                    }
+                }
+
+                return $this->successResponse([
+                    'verification_required' => true,
+                    'email' => $user->phone,
+                ], 'A verification OTP has been sent to your phone.');
+            }
         }
 
         // Check if unverified (only for customer roles, bypass for delivery staff and admin)
@@ -313,6 +436,11 @@ class AuthController extends Controller
 
         // Load profiles based on role
         $user->load(['userProfile', 'tailorProfile', 'deliveryStaffProfile']);
+
+        $user->last_login_at = now();
+        $user->last_login_ip = $request->ip();
+        $user->login_device = $request->userAgent();
+        $user->save();
 
         return $this->successResponse([
             'user' => new UserResource($user),
@@ -466,6 +594,11 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
         $user->load(['userProfile', 'tailorProfile', 'deliveryStaffProfile']);
 
+        $user->last_login_at = now();
+        $user->last_login_ip = $request->ip();
+        $user->login_device = $request->userAgent();
+        $user->save();
+
         return $this->successResponse([
             'user' => new UserResource($user),
             'token' => $token,
@@ -526,6 +659,13 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return $this->successResponse(null, 'Logged out successfully');
+    }
+
+    public function loginMode()
+    {
+        return $this->successResponse([
+            'login_by_otp' => config('auth.login_by_otp', true)
+        ]);
     }
 
     public function me(Request $request)

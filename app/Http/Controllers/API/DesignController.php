@@ -18,9 +18,13 @@ class DesignController extends Controller
         $this->designService = $designService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $data = $this->designService->getAll();
+        if ($request->filled('type')) {
+            $data = Design::with(['category', 'garments'])->where('type', $request->type)->latest()->get();
+        } else {
+            $data = $this->designService->getAll();
+        }
         return $this->successResponse($data, 'Designs fetched successfully');
     }
 

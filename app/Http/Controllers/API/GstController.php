@@ -22,8 +22,6 @@ class GstController extends Controller
         }
     }
 
-    // GET /gst/active  — used by OrderService when calculating order total
-    // FIX: was missing entirely — OrderService needs to know the current active rate
     public function active()
     {
         try {
@@ -32,7 +30,11 @@ class GstController extends Controller
                 ->first();
 
             if (!$gst) {
-                return $this->errorResponse('No active GST setting found', 404);
+                return $this->successResponse([
+                    'rate' => 0,
+                    'is_inclusive' => false,
+                    'is_active' => false
+                ], 'No active GST setting found');
             }
 
             return $this->successResponse($gst, 'Active GST fetched');

@@ -69,6 +69,13 @@ class DeliveryStaffController extends Controller
                 $data['password']
             );
 
+            if (isset($res['staff'])) {
+                $res['staff']->last_login_at = now();
+                $res['staff']->last_login_ip = $request->ip();
+                $res['staff']->login_device = $request->userAgent();
+                $res['staff']->save();
+            }
+
             return $this->successResponse(
                 $res,
                 'Login successful'

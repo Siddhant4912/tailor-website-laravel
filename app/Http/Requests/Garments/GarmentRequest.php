@@ -25,7 +25,7 @@ class GarmentRequest extends FormRequest
 
 
             'images'   => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:10240',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
 
             // Existing images array for updates
             'existing_images'   => 'nullable|array',
