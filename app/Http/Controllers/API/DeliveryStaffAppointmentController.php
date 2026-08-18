@@ -180,14 +180,15 @@ class DeliveryStaffAppointmentController extends Controller
             $appointment = Appointment::where('id', $id)
                 ->where('assigned_staff_id', $staffId)
                 ->firstOrFail();
+            $typeStr = is_object($appointment->type) ? $appointment->type->value : (string) $appointment->type;
+            $designType = ($typeStr === 'custom_cloth') ? 'stitching' : 'garment';
 
-            $garmentIds = $appointment->items()->pluck('garment_id');
-
-            if ($garmentIds->isEmpty()) {
-                $garments = Garment::with(['measurements', 'design'])->get();
-            } else {
-                $garments = Garment::with(['measurements', 'design'])->whereIn('id', $garmentIds)->get();
-            }
+            $garments = Garment::with(['measurements', 'design'])
+                ->where('is_active', true)
+                ->whereHas('design', function ($q) use ($designType) {
+                    $q->where('type', $designType);
+                })
+                ->get();
 
             return $this->successResponse($garments, 'Catalog fetched');
         } catch (\Exception $e) {

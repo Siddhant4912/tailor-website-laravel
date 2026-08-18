@@ -386,6 +386,12 @@
   <table class="layout-table" style="margin-top: 15px;">
     <tr>
       <td style="width: 55%; padding-right: 25px;">
+        @if(!empty($appointment->notes))
+        <div style="font-size: 9px; color: #475569; line-height: 1.5; margin-bottom: 12px; background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; border-radius: 4px;">
+          <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Customer Styling Notes</div>
+          {!! nl2br(e($appointment->notes)) !!}
+        </div>
+        @endif
         <div style="font-size: 9px; color: #64748b; line-height: 1.5;">
           <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Terms & Conditions</div>
           Thank you for choosing us! Please verify the garments upon receipt. All customizations are crafted as per instructions. This is a system-generated document requiring no physical signature.

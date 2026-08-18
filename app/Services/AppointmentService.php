@@ -45,7 +45,7 @@ class AppointmentService
         return DB::transaction(function () use ($data, $isSimulation) {
             $visitChargeSetting = \App\Models\Setting::where('key', 'visit_charge')->first();
             $defaultVisitCharge = $visitChargeSetting ? (float)$visitChargeSetting->value : 200.00;
-            $data['visit_charge'] = (isset($data['measurement_type']) && $data['measurement_type'] === 'onsite_visit') ? $defaultVisitCharge : 0;
+            $data['visit_charge'] = (isset($data['measurement_type']) && ($data['measurement_type'] === 'onsite_visit' || $data['measurement_type'] === 'existing_garment')) ? $defaultVisitCharge : 0;
             $data['deposit_amount'] = $data['visit_charge'];
             
             // If payment preference is online, we create it as 'draft' first until payment is verified
