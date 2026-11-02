@@ -181,10 +181,24 @@ class AdminService
             ->orderBy(DB::raw('MONTH(created_at)'))
             ->get();
 
-        $recentOrders = \App\Models\Order::with(['items', 'customer'])
+        $recentOrders = \App\Models\Order::with('customer:id,name')
             ->latest()
             ->take(5)
-            ->get();
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id'           => $order->id,
+                    'order_number' => $order->order_number,
+                    'customer'     => [
+                        'name' => $order->customer?->name ?? 'Guest',
+                    ],
+                    'total_price'  => (float) $order->total_price,
+                    'status'       => is_object($order->status) && isset($order->status->value) 
+                        ? $order->status->value 
+                        : (is_object($order->status) ? $order->status->name : (string) $order->status),
+                    'created_at'   => $order->created_at?->toIso8601String(),
+                ];
+            });
 
         $totalAppointments   = \App\Models\Appointment::count();
         $pendingAppointments = \App\Models\Appointment::where('status', 'pending')->count();
@@ -200,10 +214,10 @@ class AdminService
                 'pending_appointments'  => $pendingAppointments,
             ],
             'revenue' => [
-                'total_revenue' => $totalRevenue,
+                'total_revenue' => (float) $totalRevenue,
                 'monthly'       => $monthlyRevenue,
             ],
-            'recent_orders' => \App\Http\Resources\OrderResource::collection($recentOrders),
+            'recent_orders' => $recentOrders,
         ];
     }
 }
