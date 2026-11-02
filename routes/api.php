@@ -468,3 +468,42 @@ Route::get('/image/{path}', function ($path) {
     return response()->file($file);
 
 })->where('path', '.*');
+
+Route::get('/view-log', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
+    $logFile = storage_path('logs/laravel.log');
+    if (!file_exists($logFile)) {
+        return "No log file found at {$logFile}";
+    }
+    $lines = file($logFile);
+    $lastLines = array_slice($lines, -150);
+    return response("<pre>" . htmlspecialchars(implode("", $lastLines)) . "</pre>");
+});
+
+Route::get('/test-dashboard', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
+    try {
+        $stats = app(\App\Services\AdminService::class)->getDashboardStats();
+        return response()->json([
+            'status' => 'success',
+            'counts' => $stats['counts'],
+            'revenue' => $stats['revenue'],
+            'recent_orders_count' => count($stats['recent_orders']),
+            'recent_orders' => $stats['recent_orders'],
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => explode("\n", $e->getTraceAsString()),
+        ], 500);
+    }
+});
