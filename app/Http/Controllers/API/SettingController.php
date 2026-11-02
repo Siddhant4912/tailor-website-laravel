@@ -14,10 +14,17 @@ class SettingController extends Controller
      */
     public function index()
     {
-        // Cache the settings for 24 hours to reduce DB queries
         $settings = Cache::remember('site_settings', 60 * 24, function () {
-            return Setting::pluck('value', 'key')->toArray();
+            $all = Setting::pluck('value', 'key')->toArray();
+            if (!isset($all['other_design_price']) || $all['other_design_price'] === '' || $all['other_design_price'] === null) {
+                $all['other_design_price'] = '850';
+            }
+            return $all;
         });
+
+        if (!isset($settings['other_design_price']) || $settings['other_design_price'] === '' || $settings['other_design_price'] === null) {
+            $settings['other_design_price'] = '850';
+        }
 
         return response()->json([
             'success' => true,

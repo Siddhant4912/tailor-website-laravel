@@ -23,7 +23,7 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = Order::with(['customer', 'items.garment', 'items.tailor', 'measurements', 'invoices.transactions', 'pickupStaff', 'deliveryStaff'])
+        $query = Order::with(['customer', 'items.garment', 'items.tailor', 'items.measurements', 'measurements', 'invoices.transactions', 'pickupStaff', 'deliveryStaff'])
             ->where('status', '!=', \App\Enums\OrderStatusEnum::Draft);
 
         // If customer, only see own orders
@@ -42,11 +42,13 @@ class OrderController extends Controller
             'customer',
             'items.garment',
             'items.tailor',
+            'items.measurements',
             'measurements',
             'invoices.transactions',
             'statusLogs',
             'deliveryStaff',
-            'pickupStaff'
+            'pickupStaff',
+            'appointment.uploads'
         ])->findOrFail($id);
 
         $user = $request->user();
@@ -81,14 +83,14 @@ class OrderController extends Controller
         $validated = $request->validate([
             'delivery_address' => 'nullable|string',
             'notes' => 'nullable|string',
-            'items' => 'required|array',
-            'items.*.garment_id' => 'required|exists:garments,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.price' => 'required|numeric|min:0',
+            'items' => 'nullable|array',
+            'items.*.garment_id' => 'nullable|integer',
+            'items.*.quantity' => 'nullable|integer|min:1',
+            'items.*.price' => 'nullable|numeric|min:0',
             'items.*.custom_notes' => 'nullable|string',
             'items.*.measurements' => 'nullable|array',
-            'items.*.measurements.*.field_name' => 'required|string',
-            'items.*.measurements.*.value' => 'required|string',
+            'items.*.measurements.*.field_name' => 'nullable|string',
+            'items.*.measurements.*.value' => 'nullable|string',
         ]);
 
         $order = $this->service->createFromAppointment($appointmentId, $validated);
@@ -325,7 +327,7 @@ class OrderController extends Controller
     public function downloadStitchingSlip(Request $request, $id)
     {
         try {
-            $order = Order::with(['customer', 'items.garment', 'items.tailor', 'measurements'])->findOrFail($id);
+            $order = Order::with(['customer', 'items.garment', 'items.tailor', 'items.measurements', 'measurements'])->findOrFail($id);
             $user = $request->user();
 
             if ($user && !$user->isAdmin()) {
@@ -353,9 +355,12 @@ class OrderController extends Controller
                     // Filter order items collection
                     $order->setRelation('items', collect([$selectedItem]));
 
-                    // Filter order measurements collection to only contain measurements matching this order_item_id or garment_id
+                    // Filter order measurements collection to strictly isolate measurements matching this order_item_id
                     $filteredMeasurements = $order->measurements->filter(function ($m) use ($itemId, $selectedItem) {
-                        return ($m->order_item_id == $itemId) || ($m->garment_id == $selectedItem->garment_id);
+                        if ($m->order_item_id) {
+                            return (int) $m->order_item_id === (int) $itemId;
+                        }
+                        return (int) $m->garment_id === (int) $selectedItem->garment_id;
                     });
                     $order->setRelation('measurements', $filteredMeasurements);
                 }

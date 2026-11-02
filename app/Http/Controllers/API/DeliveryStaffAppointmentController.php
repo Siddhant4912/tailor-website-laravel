@@ -212,11 +212,15 @@ class DeliveryStaffAppointmentController extends Controller
 
             $data = $request->validate([
                 'items' => 'required|array|min:1',
-                'items.*.garment_id' => 'required|exists:garments,id',
+                'items.*.garment_id' => 'nullable|exists:garments,id',
+                'items.*.garment_name' => 'nullable|string',
                 'items.*.quantity' => 'required|integer|min:1',
                 'items.*.price' => 'required|numeric|min:0',
                 'items.*.custom_notes' => 'nullable|string',
                 'items.*.provided_own_fabric' => 'nullable|boolean',
+                'items.*.old_cloth_photo' => 'nullable|string',
+                'items.*.new_cloth_photo' => 'nullable|string',
+                'items.*.clothes' => 'nullable|array',
                 'items.*.measurements' => 'nullable|array',
                 'items.*.measurements.*.field_name' => 'required_with:items.*.measurements|string',
                 'items.*.measurements.*.value' => 'required_with:items.*.measurements|string',
@@ -255,12 +259,20 @@ class DeliveryStaffAppointmentController extends Controller
                             ->where('status', \App\Enums\TransactionStatusEnum::SUCCESSFUL)
                             ->get();
                         foreach ($successfulTxns as $successfulTxn) {
-                            $alreadyPaidOnAppointment += $successfulTxn->amount;
+                            $alreadyPaidOnAppointment += (float) $successfulTxn->amount;
                             if ($successfulTxn->payment_mode === 'online') {
                                 $lastVerifiedUpiTxnNumber = $successfulTxn->transaction_number;
                             }
                         }
                     }
+                }
+
+                $isApptPaid = ($appointment->invoices && $appointment->invoices->contains('status', \App\Enums\InvoiceStatusEnum::PAID))
+                    || $appointment->payment_status === 'paid'
+                    || $alreadyPaidOnAppointment > 0;
+
+                if ($alreadyPaidOnAppointment <= 0 && $isApptPaid && (float) $appointment->deposit_amount > 0) {
+                    $alreadyPaidOnAppointment = (float) $appointment->deposit_amount;
                 }
 
                 $advancePaid = ($data['advance_paid'] ?? 0) + $alreadyPaidOnAppointment;
@@ -295,17 +307,36 @@ class DeliveryStaffAppointmentController extends Controller
                 OrderItem::where('order_id', $order->id)->delete();
                 \App\Models\OrderMeasurement::where('order_id', $order->id)->delete();
 
+                // Also sync appointment items so appointment section reflects all items chosen during visit
+                $appointment->items()->delete();
+
                 foreach ($data['items'] as $item) {
-                    $garment = \App\Models\Garment::find($item['garment_id']);
+                    $garment = !empty($item['garment_id']) ? \App\Models\Garment::find($item['garment_id']) : null;
+                    $garmentName = $garment ? $garment->name : ($item['garment_name'] ?? 'Other (Custom Design)');
+                    $qty = (int) ($item['quantity'] ?? 1);
+                    $price = (float) ($item['price'] ?? $garment?->price ?? 0);
+                    $priceType = ($item['provided_own_fabric'] ?? false) ? 'stitching' : 'garment';
 
                     $orderItem = OrderItem::create([
                         'order_id' => $order->id,
-                        'garment_id' => $item['garment_id'],
-                        'garment_name' => $garment ? $garment->name : 'Custom Garment',
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
+                        'garment_id' => $item['garment_id'] ?? null,
+                        'garment_name' => $garmentName,
+                        'quantity' => $qty,
+                        'price' => $price,
                         'custom_notes' => $item['custom_notes'] ?? null,
                         'provided_own_fabric' => $item['provided_own_fabric'] ?? false,
+                        'old_cloth_photo' => $item['old_cloth_photo'] ?? null,
+                        'new_cloth_photo' => $item['new_cloth_photo'] ?? null,
+                        'clothes' => $item['clothes'] ?? null,
+                    ]);
+
+                    // Sync to appointment item
+                    $appointment->items()->create([
+                        'garment_id' => $item['garment_id'] ?? null,
+                        'custom_name' => $garmentName,
+                        'quantity' => $qty,
+                        'price' => $price,
+                        'price_type' => $priceType,
                     ]);
 
                     if (!empty($item['measurements'])) {
@@ -313,7 +344,7 @@ class DeliveryStaffAppointmentController extends Controller
                             \App\Models\OrderMeasurement::create([
                                 'order_id' => $order->id,
                                 'order_item_id' => $orderItem->id,
-                                'garment_id' => $item['garment_id'],
+                                'garment_id' => $item['garment_id'] ?? null,
                                 'field_name' => $m['field_name'] ?? '',
                                 'value' => $m['value'] ?? '',
                                 'note' => $m['note'] ?? null,
@@ -337,11 +368,8 @@ class DeliveryStaffAppointmentController extends Controller
                 if ($apptInvoice) {
                     $apptInvoice->transactions()->where('status', \App\Enums\TransactionStatusEnum::PENDING)->delete();
                     $apptInvoice->update([
-                        'subtotal' => 0,
                         'visit_charge' => 0,
-                        'gst_amount' => 0,
-                        'total_amount' => 0,
-                        'advance_paid' => 0,
+                        'advance_paid' => $alreadyPaidOnAppointment,
                         'status' => \App\Enums\InvoiceStatusEnum::PAID,
                         'paid_at' => now(),
                     ]);

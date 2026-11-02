@@ -161,7 +161,18 @@ class GarmentService
 
     public function find($id): Garment
     {
-        return Garment::with(['category', 'design', 'measurements'])->findOrFail($id);
+        $garment = Garment::with(['category', 'design', 'measurements'])->findOrFail($id);
+        
+        try {
+            $garment->increment('views_count');
+            if ($garment->design_id) {
+                \App\Models\Design::where('id', $garment->design_id)->increment('views_count');
+            }
+        } catch (\Throwable $e) {
+            // Ignore view increment error to prevent page view failure
+        }
+
+        return $garment;
     }
 
     // ================= DELETE =================

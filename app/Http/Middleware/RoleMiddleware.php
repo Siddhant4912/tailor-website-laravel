@@ -53,9 +53,9 @@ class RoleMiddleware
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $requiredRole = RoleEnum::from($role);
+        $requiredRole = RoleEnum::tryFrom($role);
 
-        if ($user->role !== $requiredRole) {
+        if ($user->role !== $requiredRole && !$user->isAdmin()) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 

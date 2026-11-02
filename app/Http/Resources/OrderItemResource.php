@@ -21,6 +21,14 @@ class OrderItemResource extends JsonResource
             'size' => $this->size,
 
             'status' => $this->status,
+            'provided_own_fabric' => (bool) $this->provided_own_fabric,
+            'custom_notes' => $this->custom_notes,
+            'old_cloth_photo' => $this->old_cloth_photo,
+            'old_cloth_photo_url' => $this->old_cloth_photo_url,
+            'new_cloth_photo' => $this->new_cloth_photo,
+            'new_cloth_photo_url' => $this->new_cloth_photo_url,
+            'clothes' => $this->clothes,
+            'measurements' => OrderMeasurementResource::collection($this->whenLoaded('measurements')),
 
             // IMPORTANT
             'assigned_tailor_id' => $this->assigned_tailor_id,

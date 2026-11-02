@@ -41,6 +41,7 @@ return [
     ],
 
     'gooadvert' => [
+        'enabled' => env('SMS_ENABLED', true),
         'api_key' => env('GOOADVERT_API_KEY'),
         'user' => env('GOOADVERT_USER'),
         'password' => env('GOOADVERT_PASSWORD'),

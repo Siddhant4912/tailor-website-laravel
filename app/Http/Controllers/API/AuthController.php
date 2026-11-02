@@ -151,7 +151,8 @@ class AuthController extends Controller
 
         $loginByOtp = config('auth.login_by_otp', true);
         $isAdmin = $user->isAdmin();
-        $isOtpMode = $loginByOtp && !$isAdmin;
+        // ADMIN OTP LOGIN: Admin uses OTP-based login (password is not required)
+        $isOtpMode = $loginByOtp || $isAdmin;
 
         if (!$isOtpMode) {
             if (!$request->filled('password') || !Hash::check($request->password, $user->password)) {
@@ -182,47 +183,88 @@ class AuthController extends Controller
         if ($isOtpMode) {
             $otp = (string) rand(100000, 999999);
 
-            if ($this->useEmailOtpForTesting && !empty($user->email)) {
+            // Clear previous OTPs
+            if (!empty($user->email)) {
                 Otp::where('email', $user->email)->delete();
+            }
+            if (!empty($user->phone)) {
+                Otp::where('email', $user->phone)->delete();
+            }
+            Otp::where('email', $loginInput)->delete();
+
+            // Store OTP under loginInput, email, and phone
+            Otp::create([
+                'email' => $loginInput,
+                'otp' => $otp,
+                'expires_at' => now()->addMinutes(15),
+            ]);
+
+            if (!empty($user->email) && $user->email !== $loginInput) {
                 Otp::create([
                     'email' => $user->email,
                     'otp' => $otp,
                     'expires_at' => now()->addMinutes(15),
                 ]);
+            }
 
+            if (!empty($user->phone) && $user->phone !== $loginInput) {
+                Otp::create([
+                    'email' => $user->phone,
+                    'otp' => $otp,
+                    'expires_at' => now()->addMinutes(15),
+                ]);
+            }
+
+            // Send Email OTP if email exists
+            if (!empty($user->email)) {
                 try {
                     $user->notify(new SendOtpNotification($otp));
                 } catch (\Exception $e) {
-                    \Log::error('OTP login email failed: ' . $e->getMessage());
+                    \Log::error('OTP email failed: ' . $e->getMessage());
                 }
-
-                return $this->successResponse([
-                    'verification_required' => true,
-                    'email' => $user->email,
-                ], 'A verification OTP has been sent to your email.');
-            } else {
-                Otp::where('email', $user->phone)->delete();
-                Otp::create([
-                    'email' => $user->phone,
-                    'otp' => $otp,
-                    'expires_at' => now()->addMinutes(15),
-                ]);
-
-                $isTestPhone = $user->phone === '9999999999';
-                if (!$isTestPhone) {
-                    try {
-                        $smsService = app(\App\Services\SmsService::class);
-                        $smsService->sendOtp($user->phone, $otp);
-                    } catch (\Exception $e) {
-                        \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
-                    }
-                }
-
-                return $this->successResponse([
-                    'verification_required' => true,
-                    'email' => $user->phone,
-                ], 'A verification OTP has been sent to your phone.');
             }
+
+            // Send SMS OTP to registered mobile number (using Template 1)
+            $targetPhone = $user->phone;
+            if ($isAdmin && empty($targetPhone)) {
+                $targetPhone = env('ADMIN_NOTIFICATION_PHONE') ?: \App\Models\Setting::where('key', 'admin_phone')->value('value');
+            }
+
+            if (!empty($targetPhone) && ($isAdmin || $targetPhone !== '9999999999')) {
+                try {
+                    $smsService = app(\App\Services\SmsService::class);
+                    $smsSent = $smsService->sendOtp($targetPhone, $otp);
+                    \Log::info("Login OTP SMS dispatched to registered phone {$targetPhone} (" . ($isAdmin ? "ADMIN" : "USER") . "): " . ($smsSent ? "SUCCESS" : "FAILED"));
+                } catch (\Exception $e) {
+                    \Log::error('OTP SMS failed to send during login: ' . $e->getMessage());
+                }
+            }
+
+            \Log::info("OTP generated for " . ($isAdmin ? "ADMIN" : "user") . " [{$loginInput}]: {$otp}");
+
+            $sentTarget = !empty($targetPhone)
+                ? "registered mobile number (" . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4) . ")"
+                : (!empty($user->email) ? "email ({$user->email})" : "phone");
+            if (!empty($user->email) && !empty($targetPhone)) {
+                $sentTarget = "registered mobile number (" . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4) . ") and email";
+            }
+
+            $displayTarget = !empty($targetPhone)
+                ? "+91 " . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4)
+                : $user->email;
+            if (!empty($user->email) && !empty($targetPhone)) {
+                $displayTarget = "+91 " . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4) . " & " . $user->email;
+            }
+
+            $responsePayload = [
+                'verification_required' => true,
+                'email' => $loginInput,
+                'target' => $displayTarget,
+                'target_phone' => $targetPhone,
+                'is_admin' => $isAdmin,
+            ];
+
+            return $this->successResponse($responsePayload, "A verification OTP has been sent to your {$sentTarget}.");
         }
 
         // Check if unverified (for traditional password flow)
@@ -472,65 +514,87 @@ class AuthController extends Controller
             return $this->errorResponse('No account found with this email or phone number.', 404);
         }
 
-        $isEmail = filter_var($loginInput, FILTER_VALIDATE_EMAIL);
         $otp = (string) rand(100000, 999999);
 
-        if ($isEmail) {
-            // Remove previous OTPs for this email to avoid clutter
+        // Remove previous OTPs for this user
+        if (!empty($user->email)) {
             Otp::where('email', $user->email)->delete();
+        }
+        if (!empty($user->phone)) {
+            Otp::where('email', $user->phone)->delete();
+        }
+        Otp::where('email', $loginInput)->delete();
 
+        // Store OTP for login input, user email, and user phone
+        Otp::create([
+            'email' => $loginInput,
+            'otp' => $otp,
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        if (!empty($user->email) && $user->email !== $loginInput) {
             Otp::create([
                 'email' => $user->email,
                 'otp' => $otp,
                 'expires_at' => now()->addMinutes(15),
             ]);
+        }
 
+        if (!empty($user->phone) && $user->phone !== $loginInput) {
+            Otp::create([
+                'email' => $user->phone,
+                'otp' => $otp,
+                'expires_at' => now()->addMinutes(15),
+            ]);
+        }
+
+        // Send Email OTP if email exists
+        if (!empty($user->email)) {
             try {
                 $user->notify(new SendOtpNotification($otp));
             } catch (\Exception $e) {
                 \Log::error('Resend OTP email failed: ' . $e->getMessage());
-                return $this->errorResponse('Failed to send email. Please try again.', 500, $e->getMessage());
             }
-
-            return $this->successResponse([
-                'email' => $user->email,
-            ], 'A fresh verification OTP has been sent to your email.');
-        } else {
-            // Remove previous OTPs for this phone to avoid clutter
-            Otp::where('email', $user->phone)->delete();
-
-            Otp::create([
-                'email' => $user->phone,
-                'otp' => $otp,
-                'expires_at' => now()->addMinutes(15),
-            ]);
-
-            // COMMENT THIS BLOCK TO DISABLE PHONE SMS OTP:
-            // Added by Siddhant: Bypass SMS dispatching for Google Play Store app review verification
-            $isTestPhone = $user->phone === '9999999999';
-            if (!$isTestPhone) {
-                try {
-                    $smsService = app(\App\Services\SmsService::class);
-                    $smsService->sendOtp($user->phone, $otp);
-                } catch (\Exception $e) {
-                    \Log::error('Resend OTP SMS failed: ' . $e->getMessage());
-                    return $this->errorResponse('Failed to send SMS. Please try again.', 500, $e->getMessage());
-                }
-            }
-
-            // UNCOMMENT FOR TESTING EMAIL OTP:
-            // if (!empty($user->email)) {
-            //     try {
-            //         $user->notify(new SendOtpNotification($otp));
-            //     } catch (\Exception $e) {
-            //         \Log::error('Resend OTP email failed: ' . $e->getMessage());
-            //     }
-            // }
-
-            return $this->successResponse([
-                'email' => $user->phone,
-            ], 'A fresh verification OTP has been sent to your phone.');
         }
+
+        // Send SMS OTP to registered mobile number (using Template 1)
+        $isAdmin = $user->role === RoleEnum::ADMIN;
+        $targetPhone = $user->phone;
+        if ($isAdmin && empty($targetPhone)) {
+            $targetPhone = env('ADMIN_NOTIFICATION_PHONE') ?: \App\Models\Setting::where('key', 'admin_phone')->value('value');
+        }
+
+        if (!empty($targetPhone) && ($isAdmin || $targetPhone !== '9999999999')) {
+            try {
+                $smsService = app(\App\Services\SmsService::class);
+                $smsSent = $smsService->sendOtp($targetPhone, $otp);
+                \Log::info("Resend OTP SMS dispatched to registered phone {$targetPhone} (" . ($isAdmin ? "ADMIN" : "USER") . "): " . ($smsSent ? "SUCCESS" : "FAILED"));
+            } catch (\Exception $e) {
+                \Log::error('Resend OTP SMS failed: ' . $e->getMessage());
+            }
+        }
+
+        $sentTarget = !empty($targetPhone)
+            ? "registered mobile number (" . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4) . ")"
+            : (!empty($user->email) ? "email ({$user->email})" : "phone");
+        if (!empty($user->email) && !empty($targetPhone)) {
+            $sentTarget = "registered mobile number (" . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4) . ") and email";
+        }
+
+        $displayTarget = !empty($targetPhone)
+            ? "+91 " . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4)
+            : $user->email;
+        if (!empty($user->email) && !empty($targetPhone)) {
+            $displayTarget = "+91 " . substr($targetPhone, 0, 2) . "****" . substr($targetPhone, -4) . " & " . $user->email;
+        }
+
+        $payload = [
+            'email' => $loginInput,
+            'target' => $displayTarget,
+            'target_phone' => $targetPhone,
+        ];
+
+        return $this->successResponse($payload, "A fresh verification OTP has been sent to your {$sentTarget}.");
     }
 
     /**
@@ -544,13 +608,35 @@ class AuthController extends Controller
         ]);
 
         $identifier = $request->email;
+
+        // Find user by email or phone
+        $user = User::where(function ($query) use ($identifier) {
+            $query->where('email', $identifier)
+                ->orWhere('phone', $identifier);
+
+            $cleaned = preg_replace('/[^0-9]/', '', $identifier);
+            if (strlen($cleaned) >= 10) {
+                $query->orWhere('phone', 'like', '%' . substr($cleaned, -10));
+            }
+        })->first();
+
+        if (!$user) {
+            return $this->errorResponse('No account found with this email or phone number.', 404);
+        }
+
         // Added by Siddhant: Accept universal OTP '123456' for Google Play Store review team validation
-        $isTestBypass = $identifier === '9999999999' && $request->otp === '123456';
+        $isTestBypass = ($identifier === '9999999999' || $user->phone === '9999999999') && $request->otp === '123456';
         
         if ($isTestBypass) {
             $otpRecord = null;
         } else {
-            $otpRecord = Otp::where('email', $identifier)
+            $otpRecord = Otp::where(function ($q) use ($identifier, $user) {
+                    $q->where('email', $identifier);
+                    if ($user) {
+                        if (!empty($user->email)) $q->orWhere('email', $user->email);
+                        if (!empty($user->phone)) $q->orWhere('email', $user->phone);
+                    }
+                })
                 ->where('otp', $request->otp)
                 ->latest()
                 ->first();
@@ -561,14 +647,6 @@ class AuthController extends Controller
 
             // Consume OTP
             $otpRecord->delete();
-        }
-
-        $user = User::where('email', $identifier)
-            ->orWhere('phone', $identifier)
-            ->first();
-
-        if (!$user) {
-            return $this->errorResponse('No account found with this email or phone number.', 404);
         }
 
         if ($user->isDeliveryStaff()) {

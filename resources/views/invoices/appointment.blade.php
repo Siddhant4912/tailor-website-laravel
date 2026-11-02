@@ -340,14 +340,7 @@
           <td style="text-align: center; font-weight: bold; color: #64748b;">{{ $i + 1 }}</td>
           <td>
             <div class="item-name">
-              @if($isCustom)
-                {{ $item->garment?->design?->name ?? $item->garment?->name ?? 'N/A' }} <span style="font-size: 7.5px; font-weight: normal; color: #64748b;">(SAC: 9988)</span>
-                @if($item->price_type)
-                  ({{ ucfirst($item->price_type) }})
-                @endif
-              @else
-                {{ $item->garment?->name ?? 'N/A' }} <span style="font-size: 7.5px; font-weight: normal; color: #64748b;">(SAC: 9988)</span>
-              @endif
+              {{ $item->garment?->design?->name ?? $item->custom_name ?? $item->garment?->name ?? 'Custom Stitching Design' }} <span style="font-size: 7.5px; font-weight: normal; color: #64748b;">(SAC: 9988)</span>
             </div>
             @if($item->garment?->category?->name)
               <div class="item-meta">Category: {{ $item->garment->category->name }}</div>
@@ -374,10 +367,13 @@
     
     $grandTotal = $garmentTotal + $gst + $visitCharge;
     
-    // Use invoice->advance_paid for accurate payments
+    // Use invoice->advance_paid for accurate payments, fallback to deposit_amount if paid
     $advancePaid = $invoice->advance_paid ?? 0;
+    if ($advancePaid <= 0 && $statusVal === 'paid' && !empty($appointment->deposit_amount) && (float)$appointment->deposit_amount > 0) {
+        $advancePaid = (float) $appointment->deposit_amount;
+    }
     
-    $isPaid = $statusVal === 'paid';
+    $isPaid = $statusVal === 'paid' || ($grandTotal > 0 && $advancePaid >= $grandTotal);
     $balancePaid = $isPaid ? max(0, $grandTotal - $advancePaid) : 0;
     $balanceDue = $isPaid ? 0 : max(0, $grandTotal - $advancePaid);
   @endphp
@@ -427,7 +423,7 @@
           </tr>
           @if($advancePaid > 0)
           <tr class="discount-row">
-            <td>Advance / Deposit Paid</td>
+            <td>Holding Deposit Paid</td>
             <td class="amount" style="color: #b45309;">- &#8377;{{ number_format($advancePaid, 2) }}</td>
           </tr>
           @endif

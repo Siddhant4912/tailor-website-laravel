@@ -11,10 +11,12 @@ class OrderMeasurementResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'order_id' => $this->order_id,
             'order_item_id' => $this->order_item_id,
             'garment_id' => $this->garment_id,
             'field_name' => $this->field_name,
             'value' => $this->value,
+            'note' => $this->note,
         ];
     }
 }

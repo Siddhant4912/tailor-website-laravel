@@ -22,6 +22,8 @@ use App\Http\Controllers\API\TailorProfileController;
 use App\Http\Controllers\API\TailorServiceController;
 use App\Http\Controllers\API\UserProfileController;
 use App\Http\Controllers\API\DeliveryStaffController;
+use App\Http\Controllers\API\TailorDashboardController;
+use App\Http\Controllers\API\AnalyticsController;
 
 Route::get('/run-link', function (\Illuminate\Http\Request $request) {
     $secret = env('GIT_RESET_SECRET');
@@ -87,6 +89,7 @@ Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/login-mode', [AuthController::class, 'loginMode']);
 Route::post('/delivery-staff/login', [DeliveryStaffController::class, 'login']);
+Route::post('/tailor/login', [TailorDashboardController::class, 'login']);
 
 Route::get('/catalog', [CatalogSystemController::class, 'index']);
 Route::get('/catalog/categories/{id}/garments', [CatalogSystemController::class, 'garmentsByCategory']);
@@ -101,8 +104,10 @@ Route::get('/designs/filter', [DesignController::class, 'filter']);
 Route::get('/designs/{id}', [DesignController::class, 'show']);
 Route::get('/garments', [GarmentController::class, 'index']);
 Route::get('/garments/{id}', [GarmentController::class, 'show']);
+Route::post('/garments/{id}/view', [AnalyticsController::class, 'recordView']);
 Route::get('/garments/{id}/measurements', [GarmentMeasurementController::class, 'index']);
 Route::get('/reviews', [ReviewController::class, 'index']);
+Route::get('/analytics/products-performance', [AnalyticsController::class, 'productPerformance']);
 
 /*
 |--------------------------------------------------------------------------
@@ -213,6 +218,13 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::prefix('tailor')->middleware('role:tailor')->group(function () {
 
+        Route::get('/dashboard', [TailorDashboardController::class, 'dashboard']);
+        Route::get('/assigned-items', [TailorDashboardController::class, 'assignedItems']);
+        Route::get('/assigned-items/{id}', [TailorDashboardController::class, 'showItem']);
+        Route::put('/assigned-items/{id}/status', [TailorDashboardController::class, 'updateItemStatus']);
+        Route::post('/toggle-availability', [TailorDashboardController::class, 'toggleAvailability']);
+        Route::get('/assigned-items/{id}/stitching-slip', [TailorDashboardController::class, 'downloadStitchingSlip']);
+
         Route::get('/profile', [TailorProfileController::class, 'profile']);
         Route::put('/profile', [TailorProfileController::class, 'update']);
 
@@ -228,9 +240,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')->middleware('role:admin')->group(function () {
 
         // =====================
-        // DASHBOARD
+        // DASHBOARD & ANALYTICS
         // =====================
         Route::get('/dashboard', [AdminController::class, 'dashboard']);
+        Route::get('/analytics/products-performance', [AnalyticsController::class, 'productPerformance']);
 
         // =====================
         // SETTINGS
@@ -248,6 +261,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
         Route::get('/tailors', [AdminController::class, 'allTailors']);
         Route::get('/delivery-staff', [AdminController::class, 'allDeliveryStaff']);
+        Route::post('/impersonate/{id}', [AdminController::class, 'impersonate']);
 
         // =====================
         // APPOINTMENTS (MISSING ADD THIS)

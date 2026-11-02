@@ -348,7 +348,7 @@
         <tr>
           <td style="text-align: center; font-weight: bold; color: #64748b;">{{ $i + 1 }}</td>
           <td>
-            <div class="item-name">{{ $item->garment_name ?? $item->garment?->name ?? 'Garment' }} <span style="font-size: 7.5px; font-weight: normal; color: #64748b;">(SAC: 9988)</span></div>
+            <div class="item-name">{{ $item->garment_name ?? $item->garment?->design?->name ?? $item->garment?->name ?? 'Custom Stitching Design' }} <span style="font-size: 7.5px; font-weight: normal; color: #64748b;">(SAC: 9988)</span></div>
             @if($item->provided_own_fabric)
               <div class="item-meta" style="color: #b45309; font-weight: bold;">🧵 Customer Fabric Provided</div>
             @endif
@@ -375,10 +375,16 @@
     $invoiceSubtotal = $invoice->subtotal ?? 0;
     $gstAmount = $invoice->gst_amount ?? 0;
     $advancePaid = $invoice->advance_paid ?? 0;
+    if ($advancePaid <= 0 && !empty($order->advance_paid)) {
+        $advancePaid = (float) $order->advance_paid;
+    }
+    if ($advancePaid <= 0 && !empty($order->appointment?->deposit_amount) && $order->appointment?->payment_status === 'paid') {
+        $advancePaid = (float) $order->appointment->deposit_amount;
+    }
     $visitCharge = $invoice->visit_charge ?? 0;
     $grossTotal = $invoice->total_amount ?? 0;
     
-    $isPaid = $statusVal === 'paid';
+    $isPaid = $statusVal === 'paid' || ($grossTotal > 0 && $advancePaid >= $grossTotal);
     $balancePaid = $isPaid ? max(0, $grossTotal - $advancePaid) : 0;
     $grandTotal = $isPaid ? 0 : max(0, $grossTotal - $advancePaid);
   @endphp
@@ -426,7 +432,7 @@
           </tr>
           @if($advancePaid > 0)
           <tr class="discount-row">
-            <td>{{ $advancePaid >= $grossTotal ? 'Full Amount Paid' : 'Advance / Deposit Paid' }}</td>
+            <td>{{ $advancePaid >= $grossTotal ? 'Full Amount Paid' : 'Holding Deposit / Advance Paid' }}</td>
             <td class="amount" style="color: #b45309;">- &#8377;{{ number_format($advancePaid, 2) }}</td>
           </tr>
           @endif

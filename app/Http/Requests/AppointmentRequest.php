@@ -50,7 +50,9 @@ class AppointmentRequest extends FormRequest
 
             // Related Items from the Cart / Catalog selection
             'items' => 'nullable|array',
-            'items.*.garment_id' => 'required_with:items|integer|exists:garments,id',
+            'items.*.garment_id' => 'nullable|integer|exists:garments,id',
+            'items.*.name' => 'nullable|string|max:255',
+            'items.*.is_other' => 'nullable|boolean',
             'items.*.quantity' => 'nullable|integer|min:1',
             'items.*.price' => 'nullable|numeric|min:0',
             'items.*.price_type' => 'nullable|string|in:additional,secondary,stitching,fabric',

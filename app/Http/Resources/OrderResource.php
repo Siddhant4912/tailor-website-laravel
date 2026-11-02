@@ -23,6 +23,16 @@ class OrderResource extends JsonResource
             'invoices' => InvoiceResource::collection($this->whenLoaded('invoices')),
             'status_logs' => StatusLogResource::collection($this->whenLoaded('statusLogs')),
             'reviews' => ReviewResource::collection($this->whenLoaded('reviews')),
+            'appointment' => $this->whenLoaded('appointment', function() {
+                return [
+                    'id' => $this->appointment->id,
+                    'uploads' => $this->appointment->uploads ? $this->appointment->uploads->map(fn($u) => [
+                        'id' => $u->id,
+                        'file_path' => $u->file_path,
+                        'image_url' => $u->image_url,
+                    ]) : [],
+                ];
+            }),
             'building_name' => $this->building_name,
             'flat_number' => $this->flat_number,
             'wing' => $this->wing,

@@ -219,7 +219,7 @@ class AdminController extends Controller
     {
         try {
             $tailors = User::where('role', RoleEnum::TAILOR)
-                ->with('tailorProfile')
+                ->with(['tailorProfile', 'userProfile'])
                 ->latest()
                 ->get();
             return $this->successResponse(UserResource::collection($tailors), 'Tailors fetched');
@@ -229,29 +229,41 @@ class AdminController extends Controller
     }
 
     // GET /admin/delivery-staff
- public function allDeliveryStaff(Request $request)
-{
-    try {
+    public function allDeliveryStaff(Request $request)
+    {
+        try {
+            $staff = User::where(
+                'role',
+                RoleEnum::DELIVERY_STAFF->value
+            )->with(['deliveryStaffProfile', 'userProfile'])->latest()->get();
 
-        $staff = User::where(
-            'role',
-            RoleEnum::DELIVERY_STAFF->value
-        )->get();
+            return $this->successResponse(UserResource::collection($staff), 'Staff list fetched');
 
-        return response()->json([
-            'success' => true,
-            'data' => $staff,
-            'message' => 'Staff list fetched'
-        ]);
-
-    } catch (\Throwable $e) {
-
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
-
+        } catch (\Throwable $e) {
+            return $this->errorResponse('Failed', 500, $e->getMessage());
+        }
     }
-}
+
+    // POST /admin/impersonate/{id}
+    public function impersonate(Request $request, $id)
+    {
+        try {
+            $admin = $request->user();
+            $targetUser = User::with(['tailorProfile', 'deliveryStaffProfile', 'userProfile'])->findOrFail($id);
+
+            // Generate a sanctum token for the target user
+            $token = $targetUser->createToken('impersonated_by_admin_' . $admin->id)->plainTextToken;
+
+            return $this->successResponse([
+                'token' => $token,
+                'user' => new UserResource($targetUser),
+                'role' => is_object($targetUser->role) ? $targetUser->role->value : $targetUser->role,
+                'admin_id' => $admin->id,
+                'admin_name' => $admin->name,
+            ], 'Impersonation session created successfully');
+        } catch (\Throwable $e) {
+            return $this->errorResponse('Impersonation failed: ' . $e->getMessage(), 500);
+        }
+    }
 
 }

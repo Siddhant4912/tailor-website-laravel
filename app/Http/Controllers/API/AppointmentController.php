@@ -120,6 +120,8 @@ class AppointmentController extends Controller
             unset($validated['user_id']);
 
             // Limit check: Maximum of 3 active appointments created by this user in the last 24 hours (skip for Admin)
+            // COMMENTED OUT FOR TESTING (User request):
+            /*
             if (!$this->isAdmin($request)) {
                 $existingCount = Appointment::where('customer_id', $validated['customer_id'])
                     ->where('created_at', '>=', now()->subHours(24))
@@ -134,6 +136,7 @@ class AppointmentController extends Controller
                     return $this->errorResponse('Please verify your phone number before booking an appointment.', 403);
                 }
             }
+            */
 
 
             $data = $this->service->create($validated);
@@ -471,8 +474,10 @@ class AppointmentController extends Controller
                 // Fetch the invoice and mark it paid, and its transactions successful
                 $invoice = $appt->invoices()->first();
                 if ($invoice) {
+                    $paidAmount = $invoice->total_amount > 0 ? $invoice->total_amount : ((float) ($appointmentData['deposit_amount'] ?? 100));
                     $invoice->update([
                         'status' => \App\Enums\InvoiceStatusEnum::PAID,
+                        'advance_paid' => $paidAmount,
                         'paid_at' => now(),
                     ]);
 

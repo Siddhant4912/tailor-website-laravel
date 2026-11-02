@@ -27,6 +27,7 @@ class AppointmentService
             'items.garment.category',
             'uploads',
             'invoices.transactions',
+            'order.invoices.transactions',
         ]);
     }
 
@@ -46,7 +47,15 @@ class AppointmentService
             $visitChargeSetting = \App\Models\Setting::where('key', 'visit_charge')->first();
             $defaultVisitCharge = $visitChargeSetting ? (float)$visitChargeSetting->value : 200.00;
             $data['visit_charge'] = (isset($data['measurement_type']) && ($data['measurement_type'] === 'onsite_visit' || $data['measurement_type'] === 'existing_garment')) ? $defaultVisitCharge : 0;
-            $data['deposit_amount'] = $data['visit_charge'];
+            
+            $isCash = isset($data['payment_preference']) && $data['payment_preference'] === 'cash';
+            if ($isCash) {
+                $data['deposit_amount'] = 0.00;
+                $data['cloth_advance_amount'] = 0.00;
+                $data['payment_status'] = 'pending';
+            } else {
+                $data['deposit_amount'] = isset($data['deposit_amount']) ? (float)$data['deposit_amount'] : $data['visit_charge'];
+            }
             
             // If payment preference is online, we create it as 'draft' first until payment is verified
             if (isset($data['payment_preference']) && $data['payment_preference'] === 'online' && !isset($data['status'])) {
@@ -75,9 +84,11 @@ class AppointmentService
 
             if (!empty($data['items'])) {
                 foreach ($data['items'] as $item) {
-                    $garment = \App\Models\Garment::find($item['garment_id']);
+                    $garmentId = !empty($item['garment_id']) ? $item['garment_id'] : null;
+                    $garment = $garmentId ? \App\Models\Garment::find($garmentId) : null;
                     $price = 0;
                     $priceType = $item['price_type'] ?? 'stitching';
+                    $customName = $item['name'] ?? null;
 
                     if ($garment) {
                         $type = is_object($appointment->type) ? $appointment->type->value : (string) $appointment->type;
@@ -92,11 +103,21 @@ class AppointmentService
                             $price = $garment->price ?? 0;
                             $priceType = 'stitching';
                         }
+                    } elseif (!empty($item['is_other']) || ($customName && strtolower(trim($customName)) === 'other (custom design)')) {
+                        $otherPriceSetting = \App\Models\Setting::where('key', 'other_design_price')->first();
+                        $price = ($otherPriceSetting && is_numeric($otherPriceSetting->value)) ? (float)$otherPriceSetting->value : 850.00;
+                        $priceType = 'stitching';
+                        if (!$customName) {
+                            $customName = 'Other (Custom Design)';
+                        }
+                    } elseif (isset($item['price'])) {
+                        $price = (float)$item['price'];
                     }
 
                     AppointmentItem::create([
                         'appointment_id' => $appointment->id,
-                        'garment_id' => $item['garment_id'],
+                        'garment_id' => $garmentId,
+                        'custom_name' => $customName,
                         'quantity' => $item['quantity'] ?? 1,
                         'price' => $price,
                         'price_type' => $priceType,
@@ -132,9 +153,11 @@ class AppointmentService
             if (isset($data['items'])) {
                 $appointment->items()->delete();
                 foreach ($data['items'] as $item) {
-                    $garment = \App\Models\Garment::find($item['garment_id']);
+                    $garmentId = !empty($item['garment_id']) ? $item['garment_id'] : null;
+                    $garment = $garmentId ? \App\Models\Garment::find($garmentId) : null;
                     $price = 0;
                     $priceType = $item['price_type'] ?? 'stitching';
+                    $customName = $item['name'] ?? null;
 
                     if ($garment) {
                         $type = is_object($appointment->type) ? $appointment->type->value : (string) $appointment->type;
@@ -149,11 +172,21 @@ class AppointmentService
                             $price = $garment->price ?? 0;
                             $priceType = 'stitching';
                         }
+                    } elseif (!empty($item['is_other']) || ($customName && strtolower(trim($customName)) === 'other (custom design)')) {
+                        $otherPriceSetting = \App\Models\Setting::where('key', 'other_design_price')->first();
+                        $price = ($otherPriceSetting && is_numeric($otherPriceSetting->value)) ? (float)$otherPriceSetting->value : 850.00;
+                        $priceType = 'stitching';
+                        if (!$customName) {
+                            $customName = 'Other (Custom Design)';
+                        }
+                    } elseif (isset($item['price'])) {
+                        $price = (float)$item['price'];
                     }
 
                     AppointmentItem::create([
                         'appointment_id' => $appointment->id,
-                        'garment_id' => $item['garment_id'],
+                        'garment_id' => $garmentId,
+                        'custom_name' => $customName,
                         'quantity' => $item['quantity'] ?? 1,
                         'price' => $price,
                         'price_type' => $priceType,

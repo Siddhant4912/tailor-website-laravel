@@ -16,6 +16,7 @@ class Garment extends Model
         'description',
         'images',
         'price',
+        'views_count',
         'secondary_price',
         'stitching_time_days',
         'is_active',
@@ -32,6 +33,7 @@ class Garment extends Model
         return [
             'is_active' => 'boolean',
             'price' => 'decimal:2',
+            'views_count' => 'integer',
             'secondary_price' => 'decimal:2',
             'stitching_time_days' => 'integer',
         ];
@@ -47,6 +49,9 @@ class Garment extends Model
      */
     public function getImagesAttribute($value)
     {
+        if (empty($value)) {
+            return [];
+        }
         $decoded = json_decode($value, true);
         if (!is_array($decoded)) {
             return [];

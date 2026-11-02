@@ -8,10 +8,12 @@ use Illuminate\Support\Facades\Log;
 class SmsService
 {
     protected $config;
+    protected $enabled;
 
     public function __construct()
     {
         $this->config = config('services.gooadvert');
+        $this->enabled = (bool) config('services.gooadvert.enabled', env('SMS_ENABLED', true));
     }
 
     /**
@@ -23,6 +25,11 @@ class SmsService
      */
     public function sendOtp($phone, $otp)
     {
+        if (!$this->enabled) {
+            Log::info("SMS sending is disabled (SMS_ENABLED=false). Mocking OTP to {$phone}: {$otp}");
+            return true;
+        }
+
         // 1. Sanitize and format the phone number
         $formattedPhone = $this->formatPhoneNumber($phone);
         if (!$formattedPhone) {
@@ -93,6 +100,11 @@ class SmsService
      */
     public function sendDeliveryOtp($phone, $orderNumber, $otp)
     {
+        if (!$this->enabled) {
+            Log::info("SMS sending is disabled (SMS_ENABLED=false). Mocking Delivery OTP to {$phone} for order {$orderNumber}: {$otp}");
+            return true;
+        }
+
         // 1. Sanitize and format the phone number
         $formattedPhone = $this->formatPhoneNumber($phone);
         if (!$formattedPhone) {
@@ -163,6 +175,11 @@ class SmsService
      */
     public function sendOutForDelivery($phone, $orderNumber)
     {
+        if (!$this->enabled) {
+            Log::info("SMS sending is disabled (SMS_ENABLED=false). Mocking Out for Delivery SMS to {$phone} for order {$orderNumber}");
+            return true;
+        }
+
         // 1. Sanitize and format the phone number
         $formattedPhone = $this->formatPhoneNumber($phone);
         if (!$formattedPhone) {
@@ -250,5 +267,63 @@ class SmsService
         }
 
         return null;
+    }
+
+    /**
+     * Send 15-Minute Admin Activity Summary SMS.
+     * Disabled by default (pending DLT template approval from operator).
+     *
+     * @param string $phone
+     * @param int $orderCount
+     * @param int $appointmentCount
+     * @param float $totalAmount
+     * @return bool
+     */
+    public function sendAdminActivitySummary(string $phone, int $orderCount, int $appointmentCount, float $totalAmount = 0.0): bool
+    {
+        $adminSmsEnabled = (bool) env('ADMIN_SMS_SUMMARY_ENABLED', false);
+
+        if (!$adminSmsEnabled) {
+            Log::info("Admin activity summary SMS is currently DISABLED pending DLT approval (ADMIN_SMS_SUMMARY_ENABLED=false). Mock summary for Admin ({$phone}): {$orderCount} new orders (Rs. {$totalAmount}), {$appointmentCount} new appointments.");
+            return true;
+        }
+
+        $formattedPhone = $this->formatPhoneNumber($phone);
+        if (!$formattedPhone) {
+            Log::error("Admin SMS send failed: Invalid phone number '{$phone}'");
+            return false;
+        }
+
+        $templateId = env('GOOADVERT_ADMIN_SUMMARY_TEMPLATE_ID', '');
+        $templateText = env('GOOADVERT_ADMIN_SUMMARY_TEMPLATE_TEXT', 'Dear Admin, SwiDhaagha received ##alp## new orders and ##num## new appointments in the last 15 minutes.');
+        $messageText = str_replace(['##alp##', '##num##'], [(string)$orderCount, (string)$appointmentCount], $templateText);
+
+        $params = [
+            'senderid' => $this->config['sender_id'] ?? '',
+            'channel' => $this->config['channel'] ?? 'Trans',
+            'DCS' => '0',
+            'flashsms' => '0',
+            'number' => $formattedPhone,
+            'text' => $messageText,
+            'route' => $this->config['route'] ?? '5',
+            'PEId' => $this->config['peid'] ?? '',
+            'DLTTemplateId' => $templateId,
+        ];
+
+        if (!empty($this->config['user']) && !empty($this->config['password'])) {
+            $params['user'] = $this->config['user'];
+            $params['password'] = $this->config['password'];
+        } elseif (!empty($this->config['api_key'])) {
+            $params['APIKey'] = $this->config['api_key'];
+        }
+
+        try {
+            $url = 'http://sms.gooadvert.com/api/mt/SendSMS';
+            $response = Http::get($url, $params);
+            return $response->successful() && str_contains($response->body(), '"ErrorCode":"000"');
+        } catch (\Exception $e) {
+            Log::error("Error calling Goo Advert SMS API for admin activity summary: " . $e->getMessage());
+            return false;
+        }
     }
 }

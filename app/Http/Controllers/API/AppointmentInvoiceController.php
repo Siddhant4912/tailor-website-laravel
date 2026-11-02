@@ -133,6 +133,8 @@ class AppointmentInvoiceController extends Controller
             }
         }
 
+        $appointment->load(['items.garment.design', 'items.garment.category', 'customer', 'invoices.transactions']);
+
         $pdf = Pdf::loadView('invoices.appointment', [
             'invoice' => $invoice,
             'appointment' => $appointment,

@@ -149,12 +149,14 @@ class InvoiceController extends Controller
         $invoiceable = $invoice->invoiceable;
 
         if ($invoice->invoiceable_type === Order::class) {
+            $invoiceable->load(['items.garment.design', 'items.garment.category', 'customer', 'invoices.transactions']);
             $pdf = Pdf::loadView('invoices.invoice', [
                 'order' => $invoiceable,
                 'invoice' => $invoice,
             ]);
             $filename = 'invoice-' . ($invoiceable->order_number ?? $invoice->invoice_number) . '.pdf';
         } else {
+            $invoiceable->load(['items.garment.design', 'items.garment.category', 'customer', 'invoices.transactions']);
             $pdf = Pdf::loadView('invoices.appointment', [
                 'appointment' => $invoiceable,
                 'invoice' => $invoice,

@@ -46,7 +46,7 @@ class OrderService
                 ->firstOrFail();
 
             if ($appointment->order()->exists()) {
-                throw new \Exception('An order already exists for this appointment.');
+                return $appointment->order->load(['items.garment', 'items.tailor', 'measurements', 'customer', 'invoices.transactions']);
             }
 
             $buildingName = $data['building_name'] ?? $appointment->building_name;
@@ -89,7 +89,7 @@ class OrderService
                 'appointment_id' => $appointment->id,
                 'customer_id' => $appointment->customer_id,
                 'pickup_staff_id' => $appointment->assigned_staff_id,
-                'visit_charge' => $appointment->visit_charge,
+                'visit_charge' => 0, // Waived when order is created
                 'building_name' => $buildingName,
                 'flat_number' => $flatNumber,
                 'wing' => $wing,
@@ -107,25 +107,41 @@ class OrderService
 
             $subtotal = 0;
 
-            if (!empty($data['items'])) {
-                // Fetch all garments in one query to avoid N+1
-                $garmentIds = collect($data['items'])->pluck('garment_id')->toArray();
-                $garments = \App\Models\Garment::whereIn('id', $garmentIds)->get()->keyBy('id');
+            $rawItems = !empty($data['items']) ? $data['items'] : [];
+            if (empty($rawItems) && $appointment->items) {
+                foreach ($appointment->items as $aptItem) {
+                    $rawItems[] = [
+                        'garment_id' => $aptItem->garment_id,
+                        'garment_name' => $aptItem->custom_name ?: ($aptItem->garment?->name ?? 'Custom Stitching Design'),
+                        'quantity' => $aptItem->quantity ?: 1,
+                        'price' => (float) ($aptItem->price > 0 ? $aptItem->price : ($aptItem->garment?->price ?? 0)),
+                        'provided_own_fabric' => $aptItem->price_type === 'stitching',
+                        'measurements' => [],
+                    ];
+                }
+            }
 
-                foreach ($data['items'] as $item) {
-                    $garment = $garments->get($item['garment_id']);
-                    if (!$garment)
-                        continue;
+            if (!empty($rawItems)) {
+                $garmentIds = collect($rawItems)->pluck('garment_id')->filter()->toArray();
+                $garments = !empty($garmentIds) ? \App\Models\Garment::whereIn('id', $garmentIds)->get()->keyBy('id') : collect();
 
-                    $price = (float) ($item['price'] ?? $garment->price ?? 0);
-                    $quantity = $item['quantity'] ?? 1;
+                foreach ($rawItems as $item) {
+                    $garment = !empty($item['garment_id']) ? $garments->get($item['garment_id']) : null;
+                    $garmentName = $item['garment_name'] ?? $garment?->name ?? 'Custom Stitching Design';
+                    $price = (float) ($item['price'] ?? $garment?->price ?? 0);
+                    $quantity = (int) ($item['quantity'] ?? 1);
 
                     $orderItem = OrderItem::create([
                         'order_id' => $order->id,
-                        'garment_id' => $garment->id,
-                        'garment_name' => $garment->name ?? 'Garment',
+                        'garment_id' => $garment?->id,
+                        'garment_name' => $garmentName,
                         'price' => $price,
                         'quantity' => $quantity,
+                        'custom_notes' => $item['custom_notes'] ?? null,
+                        'provided_own_fabric' => $item['provided_own_fabric'] ?? false,
+                        'old_cloth_photo' => $item['old_cloth_photo'] ?? null,
+                        'new_cloth_photo' => $item['new_cloth_photo'] ?? null,
+                        'clothes' => $item['clothes'] ?? null,
                     ]);
 
                     $subtotal += ($price * $quantity);
@@ -136,16 +152,55 @@ class OrderService
                             continue;
                         OrderMeasurement::create([
                             'order_id' => $order->id,
-                            'order_item_id' => $orderItem->id, // Add order_item_id just in case
-                            'garment_id' => $garment->id, // Important for Staff Mesaurement
+                            'order_item_id' => $orderItem->id,
+                            'garment_id' => $garment?->id,
                             'field_name' => $m['field_name'],
-                            'value' => $m['value'],
+                            'value' => $m['value'] ?? '',
+                            'note' => $m['note'] ?? null,
                         ]);
                     }
                 }
             }
 
-            $advancePaid = (float) $appointment->deposit_amount + (float) $appointment->cloth_advance_amount + (float) $appointment->visit_charge;
+            // Migrate notes as measurements if none were explicitly provided
+            if ($order->measurements()->count() === 0 && !empty($appointment->notes)) {
+                $decodedNotes = json_decode($appointment->notes, true);
+                if (is_array($decodedNotes)) {
+                    $firstOrderItem = $order->items()->first();
+                    foreach ($decodedNotes as $key => $val) {
+                        if (is_string($val) || is_numeric($val)) {
+                            OrderMeasurement::create([
+                                'order_id' => $order->id,
+                                'order_item_id' => $firstOrderItem?->id,
+                                'garment_id' => $firstOrderItem?->garment_id,
+                                'field_name' => (string) $key,
+                                'value' => (string) $val,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            $alreadyPaidOnAppointment = 0;
+            if ($appointment->invoices) {
+                foreach ($appointment->invoices as $apptInvoice) {
+                    $successfulTxns = $apptInvoice->transactions()
+                        ->where('status', \App\Enums\TransactionStatusEnum::SUCCESSFUL)
+                        ->get();
+                    foreach ($successfulTxns as $successfulTxn) {
+                        $alreadyPaidOnAppointment += (float) $successfulTxn->amount;
+                    }
+                }
+            }
+
+            $isApptPaid = ($appointment->invoices && $appointment->invoices->contains('status', \App\Enums\InvoiceStatusEnum::PAID))
+                || $appointment->payment_status === 'paid'
+                || $alreadyPaidOnAppointment > 0;
+
+            $advancePaid = max(
+                $alreadyPaidOnAppointment,
+                $isApptPaid ? ((float) $appointment->deposit_amount + (float) $appointment->cloth_advance_amount) : 0
+            );
 
             $gstRate = $this->gstService->getActiveRate();
             $isInclusive = $this->gstService->isActiveInclusive();
@@ -169,7 +224,13 @@ class OrderService
 
             $appointment->update(['status' => AppointmentStatusEnum::COMPLETED]);
 
-            // Invoice generated upon delivery
+            // Auto generate order invoice so calculations and PDF are immediately linked
+            try {
+                $this->invoiceService->generateForOrder($order);
+            } catch (\Throwable $e) {
+                Log::error('Invoice generation failed on createFromAppointment: ' . $e->getMessage());
+            }
+
             // Dispatch notification
             try {
                 $order->customer->notify(new \App\Notifications\OrderStatusNotification($order, 'pending'));

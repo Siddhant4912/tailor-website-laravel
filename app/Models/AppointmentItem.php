@@ -9,6 +9,7 @@ class AppointmentItem extends Model
     protected $fillable = [
         'appointment_id',
         'garment_id',
+        'custom_name',
         'quantity',
         'price',
         'price_type',

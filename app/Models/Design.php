@@ -24,6 +24,7 @@ class Design extends Model
         'secondary_price',
         'is_active',
         'type',
+        'views_count',
     ];
 
     protected $appends = [
@@ -34,6 +35,7 @@ class Design extends Model
     {
         return [
             'is_active' => 'boolean',
+            'views_count' => 'integer',
             'additional_price' => 'decimal:2',
             'secondary_price' => 'decimal:2',
         ];

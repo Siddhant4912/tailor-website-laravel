@@ -128,7 +128,7 @@
             <img src="{{ public_path('images/logo.png') }}" style="float: left; height: 50px; width: 50px; border-radius: 8px; margin-right: 12px;" />
           @endif
           <div style="float: left; margin-top: 4px;">
-            <div class="brand">{{ config('company.name', 'Antigravity Tailors') }}</div>
+            <div class="brand">{{ config('company.name', 'SwiDhaagha Tailors') }}</div>
             <div style="font-size:11px; color:#666; margin-top:2px;">
               {{ config('company.tagline', 'Premium Custom Stitching Job Slip') }}
             </div>
@@ -148,34 +148,24 @@
     </tr>
   </table>
 
-  {{-- INFO BLOCKS --}}
+  {{-- INFO BLOCKS (Tailor Workshop Reference - Customer personal details and pricing hidden) --}}
   <table class="meta-grid">
     <tr>
-      <td class="meta-label">Customer Name:</td>
-      <td>{{ $order->customer->name ?? 'N/A' }}</td>
+      <td class="meta-label">Job Reference:</td>
+      <td style="font-weight: bold; color: #1a1a2e;">#{{ $order->order_number }}</td>
       <td class="meta-label">Order Status:</td>
       <td style="text-transform: uppercase; font-weight: bold; color: #e94560;">{{ $order->status }}</td>
     </tr>
     <tr>
-      <td class="meta-label">Phone Number:</td>
-      <td>{{ $order->customer->phone ?? 'N/A' }}</td>
-      <td class="meta-label">Delivery Date:</td>
+      <td class="meta-label">Target Delivery Date:</td>
       <td style="font-weight: bold;">
-        {{ $order->delivery_date ? \Carbon\Carbon::parse($order->delivery_date)->format('j F Y') : 'Standard Delivery' }}
+        {{ $order->delivery_date ? \Carbon\Carbon::parse($order->delivery_date)->format('j F Y') : 'Standard Workshop Queue' }}
+      </td>
+      <td class="meta-label">Assigned Tailor:</td>
+      <td style="font-weight: bold; color: #e94560; font-size: 13px;">
+        {{ isset($selectedItem) ? ($selectedItem->tailor?->name ?? 'Unassigned') : 'Workshop' }}
       </td>
     </tr>
-    <tr>
-      <td class="meta-label">Delivery Address:</td>
-      <td colspan="3">{{ $order->delivery_address ?? 'Pickup from Store' }}</td>
-    </tr>
-    @if(isset($selectedItem))
-    <tr>
-      <td class="meta-label" style="color:#e94560; font-weight: bold;">Assigned Tailor:</td>
-      <td colspan="3" style="font-weight: bold; color: #e94560; font-size: 14px;">
-        {{ $selectedItem->tailor?->name ?? 'Unassigned' }}
-      </td>
-    </tr>
-    @endif
   </table>
 
   {{-- ITEMS SECTION --}}
@@ -209,30 +199,135 @@
 
   {{-- MEASUREMENTS SECTION --}}
   <div class="section">
-    <div class="section-title">Custom Measurement Specifications</div>
-    @if(count($order->measurements) > 0)
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Measurement Parameter</th>
-          <th style="width: 180px; text-align: center;">Specification Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        @foreach($order->measurements as $m)
-        <tr>
-          <td style="font-weight: bold; color: #444;">{{ ucwords(str_replace('_', ' ', $m->field_name)) }}</td>
-          <td style="text-align: center; font-size: 14px; font-weight: bold; color: #1a1a2e; background-color: #fcfcfc;">
-            {{ $m->value }}
-          </td>
-        </tr>
-        @endforeach
-      </tbody>
-    </table>
-    @else
-    <div class="notes-box" style="background: #f4f6f7; border-left: 4px solid #bdc3c7; color: #7f8c8d;">
-      No custom sizes recorded for this order. Tailor should follow standard sample garment measurement.
+    <div class="section-title">
+      @if(isset($selectedItem))
+        Custom Measurement Specifications — {{ $selectedItem->garment_name ?? 'Garment' }}
+      @else
+        Custom Measurement Specifications
+      @endif
     </div>
+
+    @if(count($order->measurements) > 0)
+      @if(isset($selectedItem) || $order->items->count() <= 1)
+        {{-- Single item slip or single-item order --}}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 35px; text-align: center;">#</th>
+              <th>Measurement Parameter</th>
+              <th style="width: 140px; text-align: center;">Specification Value</th>
+              <th>Tailor Notes / Instructions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($order->measurements as $idx => $m)
+            <tr>
+              <td style="text-align: center; color: #777;">{{ $idx + 1 }}</td>
+              <td style="font-weight: bold; color: #1a1a2e;">{{ ucwords(str_replace('_', ' ', $m->field_name)) }}</td>
+              <td style="text-align: center; font-size: 13px; font-weight: bold; color: #1a1a2e; background-color: #fcfcfc;">
+                {{ $m->value }}
+              </td>
+              <td style="font-size: 11px; color: #444;">
+                {{ $m->note ?: '-' }}
+              </td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      @else
+        {{-- Multiple items in full order slip: Group clearly by garment item so tailor can easily identify each cloth --}}
+        @php
+          $matchedMeasurementIds = [];
+        @endphp
+
+        @foreach($order->items as $itemIdx => $item)
+          @php
+            $itemMeasurements = $order->measurements->filter(function($m) use ($item) {
+              return $m->order_item_id ? ((int)$m->order_item_id === (int)$item->id) : ((int)$m->garment_id === (int)$item->garment_id);
+            });
+            foreach ($itemMeasurements as $im) {
+              $matchedMeasurementIds[] = $im->id;
+            }
+          @endphp
+
+          <div style="margin-top: 14px; margin-bottom: 6px; padding: 6px 10px; background: #f0f4f8; border-left: 4px solid #1a1a2e; font-size: 12px; font-weight: bold; color: #1a1a2e;">
+            Garment #{{ $itemIdx + 1 }}: {{ $item->garment_name ?? $item->garment?->name ?? 'Custom Garment' }} 
+            (Qty: {{ $item->quantity }})
+            @if($item->tailor)
+              <span style="font-weight: normal; color: #666; margin-left: 10px;">Assigned Tailor: {{ $item->tailor->name }}</span>
+            @endif
+          </div>
+
+          @if($itemMeasurements->count() > 0)
+            <table class="data-table" style="margin-bottom: 14px;">
+              <thead>
+                <tr>
+                  <th style="width: 35px; text-align: center;">#</th>
+                  <th>Measurement Parameter</th>
+                  <th style="width: 140px; text-align: center;">Specification Value</th>
+                  <th>Tailor Notes / Instructions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($itemMeasurements as $mIdx => $m)
+                <tr>
+                  <td style="text-align: center; color: #777;">{{ $mIdx + 1 }}</td>
+                  <td style="font-weight: bold; color: #1a1a2e;">{{ ucwords(str_replace('_', ' ', $m->field_name)) }}</td>
+                  <td style="text-align: center; font-size: 13px; font-weight: bold; color: #1a1a2e; background-color: #fcfcfc;">
+                    {{ $m->value }}
+                  </td>
+                  <td style="font-size: 11px; color: #444;">
+                    {{ $m->note ?: '-' }}
+                  </td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          @else
+            <div class="notes-box" style="margin-bottom: 12px; background: #fafafa; border-left: 4px solid #ccc; color: #888; font-size: 11px;">
+              No custom measurements recorded for this garment item.
+            </div>
+          @endif
+        @endforeach
+
+        {{-- Fallback for any unlinked measurements --}}
+        @php
+          $remainingMeasurements = $order->measurements->filter(fn($m) => !in_array($m->id, $matchedMeasurementIds));
+        @endphp
+        @if($remainingMeasurements->count() > 0)
+          <div style="margin-top: 14px; margin-bottom: 6px; padding: 6px 10px; background: #fff8e1; border-left: 4px solid #ffa000; font-size: 12px; font-weight: bold; color: #5d4037;">
+            General / Additional Measurements
+          </div>
+          <table class="data-table" style="margin-bottom: 14px;">
+            <thead>
+              <tr>
+                <th style="width: 35px; text-align: center;">#</th>
+                <th>Measurement Parameter</th>
+                <th style="width: 140px; text-align: center;">Specification Value</th>
+                <th>Tailor Notes / Instructions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach($remainingMeasurements as $rIdx => $rm)
+              <tr>
+                <td style="text-align: center; color: #777;">{{ $rIdx + 1 }}</td>
+                <td style="font-weight: bold; color: #1a1a2e;">{{ ucwords(str_replace('_', ' ', $rm->field_name)) }}</td>
+                <td style="text-align: center; font-size: 13px; font-weight: bold; color: #1a1a2e; background-color: #fcfcfc;">
+                  {{ $rm->value }}
+                </td>
+                <td style="font-size: 11px; color: #444;">
+                  {{ $rm->note ?: '-' }}
+                </td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+        @endif
+      @endif
+    @else
+      <div class="notes-box" style="background: #f4f6f7; border-left: 4px solid #bdc3c7; color: #7f8c8d;">
+        No custom sizes recorded for this order. Tailor should follow standard sample garment measurement.
+      </div>
     @endif
   </div>
 
@@ -257,7 +352,7 @@
 
   {{-- FOOTER --}}
   <div class="footer">
-    Antigravity Tailoring ERP System
+    SwiDhaagha Tailoring ERP System
     |
     Stitching Job Card for Internal Reference Only
     |
