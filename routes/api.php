@@ -507,3 +507,38 @@ Route::get('/test-dashboard', function (\Illuminate\Http\Request $request) {
         ], 500);
     }
 });
+
+Route::get('/test-user-dashboard', function (\Illuminate\Http\Request $request) {
+    $secret = env('GIT_RESET_SECRET');
+    if (!$secret || $request->query('secret') !== $secret) {
+        abort(404);
+    }
+    try {
+        $user = \App\Models\User::where('phone', '7900151236')->orWhere('id', 8)->first();
+        if (!$user) {
+            return response()->json(['status' => 'no user found']);
+        }
+        $appReq = new \Illuminate\Http\Request();
+        $appReq->setUserResolver(fn() => $user);
+        $appController = app(\App\Http\Controllers\API\AppointmentController::class);
+        $appointmentsRes = $appController->myAppointments($appReq);
+
+        $orderController = app(\App\Http\Controllers\API\OrderController::class);
+        $ordersRes = $orderController->index($appReq);
+
+        return response()->json([
+            'status' => 'success',
+            'user' => $user->name,
+            'appointments_count' => count($appointmentsRes->getData()->data ?? []),
+            'orders_count' => count($ordersRes->getData()->data ?? []),
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => explode("\n", $e->getTraceAsString()),
+        ], 500);
+    }
+});
