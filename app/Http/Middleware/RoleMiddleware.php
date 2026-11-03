@@ -53,9 +53,13 @@ class RoleMiddleware
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        $userRole = is_object($user->role) && isset($user->role->value) ? $user->role->value : (string) $user->role;
         $requiredRole = RoleEnum::tryFrom($role);
+        $requiredRoleValue = $requiredRole ? $requiredRole->value : $role;
 
-        if ($user->role !== $requiredRole && !$user->isAdmin()) {
+        $isAdmin = $userRole === 'admin' || $userRole === 'ADM' || (method_exists($user, 'isAdmin') && $user->isAdmin());
+
+        if ($userRole !== $requiredRoleValue && !$isAdmin) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
