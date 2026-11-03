@@ -35,7 +35,7 @@ class AdminController extends Controller
     {
         try {
             $users = $this->adminService->getUsers(
-                $request->only(['role', 'status', 'search'])
+                $request->only(['role', 'status', 'search', 'per_page'])
             );
             
             return $this->successResponse([
@@ -44,6 +44,7 @@ class AdminController extends Controller
                     'current_page' => $users->currentPage(),
                     'last_page' => $users->lastPage(),
                     'total' => $users->total(),
+                    'per_page' => $users->perPage(),
                 ]
             ], 'Users fetched');
         } catch (Throwable $e) {

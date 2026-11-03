@@ -156,7 +156,8 @@ class AdminService
             });
         }
 
-        return $query->orderBy('id', 'desc')->paginate(10);
+        $perPage = !empty($filters['per_page']) ? max(1, (int) $filters['per_page']) : 10;
+        return $query->orderBy('id', 'desc')->paginate($perPage);
     }
 
     public function getDashboardStats()
